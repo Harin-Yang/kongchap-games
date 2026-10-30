@@ -17,6 +17,8 @@ tools: Bash, Read, Glob, Grep
 	- `ui-01-room.png`
 	- 바뀐 게임의 `ui-<게임>-2-mid.png`, `ui-<게임>-3-over.png`
 	- `online-wall-flipped.png`, `online-dojo-flipped.png`
+	- '바뀐 게임' 찾는 법: 부른 쪽이 알려 주면 그 게임. 아니면 `git diff HEAD~1 -- index.html`에서 바뀐 줄이 속한 `GAMES.<키>`를 찾는다. 공통 코드(화면·연결·전적)가 바뀌었거나 판단이 안 서면 8종 전부 본다.
+	- 스크린샷 파일이 없으면 그 자체를 실패로 보고한다(판이 끝나지 않았다는 뜻).
 5. 실패가 있으면 해당 단계만 다시 돌려(`npm run test:<단계>`) 우연인지 확인한다.
 	- 두 번 다 실패하면 실제 실패로 본다.
 	- 한 번만 실패하면 '불안정'으로 보고한다.

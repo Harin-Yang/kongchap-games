@@ -17,7 +17,7 @@ const OUT = path.join(__dirname, "report");
 const MQTT_JS = fs.readFileSync(path.join(ROOT, "node_modules/mqtt/dist/mqtt.min.js"), "utf8");
 const PHONE = { width: 390, height: 844 };
 const ALL_GAMES = ["hive", "dojo", "tower", "wall", "omok", "four", "reversi", "dots"];
-const MOVE_CAP = { omok: 120, four: 42, reversi: 64, dots: 60, wall: 80, dojo: 80, tower: 80, hive: 70 };
+const MOVE_CAP = { omok: 30, four: 42, reversi: 64, dots: 60, wall: 80, dojo: 120, tower: 120, hive: 150 };
 
 const only = process.argv[2] || "all";
 const results = [];
@@ -99,7 +99,11 @@ async function closeOverlays(page) {
 	await page.evaluate(() => document.querySelectorAll(".overlay").forEach(o => o.remove()));
 }
 
-/* 무작위 합법 수 하나 두기 (앱의 commit을 그대로 사용) */
+/*
+	수 고르기 (앱의 commit을 그대로 사용)
+	- 무작위로 두면 오목·벽 미로·벌집은 판이 잘 안 끝나서,
+	  이 셋은 '끝내는 쪽'으로 기울인 수를 고른다. 결과 팝업·전적까지 검사하기 위함.
+*/
 async function randomMove(page) {
 	return page.evaluate(() => {
 		const st = S.game;
@@ -107,7 +111,76 @@ async function randomMove(page) {
 		if (!ms.length) {
 			return { none: true };
 		}
-		const m = ms[Math.floor(Math.random() * ms.length)];
+		const p = st.turn;
+		const pickRandom = list => list[Math.floor(Math.random() * list.length)];
+		let m = pickRandom(ms);
+		if (st.game === "omok") {
+			const row = p === 0 ? 0 : 14;
+			for (let c = 0; c < 15; c++) {
+				if (st.s.b[row * 15 + c] === -1) {
+					m = row * 15 + c;
+					break;
+				}
+			}
+		} else if (st.game === "wall") {
+			const dist = from => {
+				const seen = new Set([from]);
+				let frontier = [from];
+				let d = 0;
+				while (frontier.length) {
+					const next = [];
+					for (const i of frontier) {
+						if (Math.floor(i / 9) === QGOAL[p]) {
+							return d;
+						}
+						const r = Math.floor(i / 9);
+						const c = i % 9;
+						for (const [dr, dc] of D4) {
+							const r2 = r + dr;
+							const c2 = c + dc;
+							if (qIn(r2, c2) && !qBlocked(st.s.walls, r, c, r2, c2) && !seen.has(r2 * 9 + c2)) {
+								seen.add(r2 * 9 + c2);
+								next.push(r2 * 9 + c2);
+							}
+						}
+					}
+					frontier = next;
+					d++;
+				}
+				return 99;
+			};
+			const pawn = ms.filter(x => x[0] === "m");
+			const best = Math.min(...pawn.map(x => dist(Number(x.slice(2)))));
+			m = Math.random() < 0.15 && ms.length > pawn.length
+				? pickRandom(ms.filter(x => x[0] === "w"))
+				: pickRandom(pawn.filter(x => dist(Number(x.slice(2))) === best));
+		} else if (st.game === "hive") {
+			const G = GAMES.hive;
+			const around = (s, who) => {
+				for (const k of hOccupied(s.b)) {
+					if (s.b[k].some(x => x.p === who && x.k === "Q")) {
+						return hNb(k).filter(n => s.b[n] && s.b[n].length).length;
+					}
+				}
+				return 0;
+			};
+			let bestScore = -Infinity;
+			let bests = [];
+			for (const cand of ms) {
+				const r = G.apply(st.s, cand, p);
+				if (!r) {
+					continue;
+				}
+				const sc = r.over ? (r.over.winner === p ? 1000 : -1000) : around(r.s, 1 - p) * 3 - around(r.s, p);
+				if (sc > bestScore) {
+					bestScore = sc;
+					bests = [cand];
+				} else if (sc === bestScore) {
+					bests.push(cand);
+				}
+			}
+			m = pickRandom(bests);
+		}
 		const seq = st.seq;
 		commit(m);
 		return { m: m, moved: S.game.seq === seq + 1 };
@@ -155,6 +228,14 @@ async function testRules(browser) {
 		x = play("reversi", [19]);
 		t("리버시: 끼우면 뒤집힘", x.s.b[27] === 0 && x.s.b[19] === 0);
 		t("리버시: 못 뒤집는 칸 불가", play("reversi", [0]).rejected === 0);
+
+		const rb = Array(64).fill(-1);
+		rb[0] = 0;
+		rb[1] = 1;
+		rb[16] = 0;
+		rb[17] = 1;
+		x = GAMES.reversi.apply({ b: rb, last: -1, flipped: [], pass: null }, 2, 0);
+		t("리버시: 상대가 둘 곳 없으면 패스하고 내 차례 유지", x && !x.over && x.turn === 0 && /패스/.test(x.note || ""));
 
 		x = play("dots", ["h:0", "v:0", "h:5"]);
 		t("땅따먹기: 네모 못 만들면 차례 넘김", x.p === 1);
@@ -215,6 +296,13 @@ async function testRules(browser) {
 		const ts3 = { h: Array(25).fill(0), w: [[0, 24], [4, 20]], setup: false, last: null };
 		ts3.h[1] = 4;
 		t("구름 탑: 지붕 칸은 못 감", T.apply(ts3, "m:0:1:2", 0) === null);
+		const trap = { h: Array(25).fill(0), w: [[7, 2], [0, 24]], setup: false, last: null };
+		[1, 5, 6, 23, 19].forEach(i => {
+			trap.h[i] = 4;
+		});
+		trap.h[18] = 2;
+		x = T.apply(trap, "m:0:13:18", 0);
+		t("구름 탑: 상대 일꾼이 모두 갇히면 승리", x && x.over && x.over.winner === 0);
 		let ss = T.init();
 		[["s:0", 0], ["s:1", 1], ["s:2", 0], ["s:3", 1]].forEach(([m, p]) => {
 			const r = T.apply(ss, m, p);
@@ -384,7 +472,7 @@ async function testUI(browser) {
 			const undoBefore = await page.evaluate(() => S.history.length);
 			check(g + ": 무르기 기록 쌓임", undoBefore > 0);
 		} else {
-			check(g + ": " + n + "수 동안 오류 없이 진행 (상한 도달)", n > 0);
+			check(g + ": 판이 끝까지 진행됨", false, n + "수 안에 끝나지 않음 (상한 " + MOVE_CAP[g] + ")");
 		}
 		await screenSanity(page, g + " 진행 후");
 		await closeOverlays(page);
@@ -533,6 +621,7 @@ async function testOnline(browser) {
 			}, 5000);
 			check(g + ": 전적이 두 폰에 똑같이 쌓임", statsOk);
 		} else {
+			check(g + ": 판이 끝까지 진행됨", false, n + "수 안에 끝나지 않음");
 			await pa.screenshot({ path: path.join(OUT, "online-" + g + "-A.png"), fullPage: true });
 		}
 		if (seatsA < 0) {
