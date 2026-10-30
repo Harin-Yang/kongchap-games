@@ -232,6 +232,42 @@ input[type="text"] {
 	border-width: 1.5px;
 }
 
+.sec { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.gcard.mania { background: linear-gradient(160deg, #fff 60%, #fff3c4); }
+.tag { display: inline-block; font-size: 12px; padding: 3px 10px; border-radius: 999px; background: var(--pink-soft); color: #c2457a; }
+.ocards { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.olabel { font-family: var(--font-display); font-size: 13px; color: var(--soft); min-width: 0; }
+.ocard {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 2px;
+	padding: 6px 6px 4px;
+	border-radius: 12px;
+	font-size: 12px;
+	box-shadow: 0 2px 0 var(--ink);
+	border-width: 1.5px;
+}
+.ocard:disabled { opacity: 1; }
+.ocard.on { background: var(--pink-soft); border-color: var(--pink); box-shadow: 0 2px 0 var(--pink); }
+.tray { display: flex; flex-direction: column; gap: 4px; }
+.trayitems { display: flex; gap: 6px; flex-wrap: wrap; }
+.bug {
+	display: flex;
+	align-items: center;
+	gap: 3px;
+	padding: 6px 9px;
+	border-radius: 12px;
+	font-size: 13px;
+	box-shadow: 0 2px 0 var(--ink);
+	border-width: 1.5px;
+}
+.bug.b0 { background: #efe2da; }
+.bug.b1 { background: #fffaf4; }
+.bug.on { outline: 3px solid var(--pink); }
+.bug .em { font-size: 18px; line-height: 1; }
+.bug:disabled { opacity: .35; }
+
 /* 결과 팝업 */
 .overlay {
 	position: fixed;
@@ -395,6 +431,7 @@ const S = {
 	game: null,
 	local: false,
 	pending: null,
+	sel: null,
 	stats: null,
 	statsTab: "all",
 	lastGid: null,
@@ -876,7 +913,1261 @@ GAMES.dots = {
 	}
 };
 
-const GAME_ORDER = ["omok", "four", "reversi", "dots"];
+/* =========================================================
+	매니아 픽 공통 도우미
+========================================================= */
+function spot(svg, x, y, r, color) {
+	el("circle", { cx: x, cy: y, r: r, fill: color || "#ff7aa8", opacity: ".75", stroke: "#fff", "stroke-width": 1.5 }, svg);
+}
+
+function ringAt(svg, x, y, r, color) {
+	el("circle", { cx: x, cy: y, r: r, fill: "none", stroke: color || "#ff7aa8", "stroke-width": 3, "stroke-dasharray": "4 3" }, svg);
+}
+
+function crown(svg, x, y, s) {
+	el("path", {
+		d: "M" + (x - s) + " " + y +
+			" L" + (x - s) + " " + (y - s * 0.9) +
+			" L" + (x - s * 0.5) + " " + (y - s * 0.4) +
+			" L" + x + " " + (y - s * 1.1) +
+			" L" + (x + s * 0.5) + " " + (y - s * 0.4) +
+			" L" + (x + s) + " " + (y - s * 0.9) +
+			" L" + (x + s) + " " + y + " Z",
+		fill: "#ffd66b",
+		stroke: "#3b2f4a",
+		"stroke-width": 1.6,
+		"stroke-linejoin": "round"
+	}, svg);
+}
+
+function cellHits(svg, n, x0, step, size, flip, onCell) {
+	for (let r = 0; r < n; r++) {
+		for (let c = 0; c < n; c++) {
+			const rr = flip ? n - 1 - r : r;
+			const cc = flip ? n - 1 - c : c;
+			const hit = el("rect", { x: x0 + c * step, y: x0 + r * step, width: size, height: size, fill: "transparent" }, svg);
+			hit.addEventListener("click", () => onCell(rr * n + cc));
+		}
+	}
+}
+
+function ctrlBtn(label, opts) {
+	const o = opts || {};
+	return h("button", {
+		class: "small" + (o.on ? " pink" : "") + (o.cls ? " " + o.cls : ""),
+		id: o.id,
+		disabled: !!o.disabled,
+		onclick: o.onclick
+	}, label);
+}
+
+/* =========================================================
+	벽 미로 (쿼리도 방식)
+========================================================= */
+const QN = 9;
+const QGOAL = [0, 8];
+const D4 = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+
+function qBlocked(ws, r, c, r2, c2) {
+	if (r2 === r + 1) {
+		return ws.includes("h:" + r + ":" + c) || ws.includes("h:" + r + ":" + (c - 1));
+	}
+	if (r2 === r - 1) {
+		return qBlocked(ws, r2, c2, r, c);
+	}
+	if (c2 === c + 1) {
+		return ws.includes("v:" + r + ":" + c) || ws.includes("v:" + (r - 1) + ":" + c);
+	}
+	if (c2 === c - 1) {
+		return qBlocked(ws, r2, c2, r, c);
+	}
+	return true;
+}
+
+function qIn(r, c) {
+	return r >= 0 && r < QN && c >= 0 && c < QN;
+}
+
+function qPath(ws, from, goal) {
+	const seen = new Set([from]);
+	const q = [from];
+	while (q.length) {
+		const i = q.shift();
+		const r = Math.floor(i / QN);
+		const c = i % QN;
+		if (r === goal) {
+			return true;
+		}
+		for (const [dr, dc] of D4) {
+			const r2 = r + dr;
+			const c2 = c + dc;
+			if (!qIn(r2, c2) || qBlocked(ws, r, c, r2, c2)) {
+				continue;
+			}
+			const j = r2 * QN + c2;
+			if (!seen.has(j)) {
+				seen.add(j);
+				q.push(j);
+			}
+		}
+	}
+	return false;
+}
+
+function qPawnMoves(s, p) {
+	const out = [];
+	const ws = s.walls;
+	const from = s.pos[p];
+	const opp = s.pos[1 - p];
+	const r = Math.floor(from / QN);
+	const c = from % QN;
+	for (const [dr, dc] of D4) {
+		const r1 = r + dr;
+		const c1 = c + dc;
+		if (!qIn(r1, c1) || qBlocked(ws, r, c, r1, c1)) {
+			continue;
+		}
+		const i1 = r1 * QN + c1;
+		if (i1 !== opp) {
+			out.push(i1);
+			continue;
+		}
+		const r2 = r1 + dr;
+		const c2 = c1 + dc;
+		if (qIn(r2, c2) && !qBlocked(ws, r1, c1, r2, c2)) {
+			out.push(r2 * QN + c2);
+			continue;
+		}
+		const side = dr === 0 ? [[1, 0], [-1, 0]] : [[0, 1], [0, -1]];
+		for (const [er, ec] of side) {
+			const r3 = r1 + er;
+			const c3 = c1 + ec;
+			if (qIn(r3, c3) && !qBlocked(ws, r1, c1, r3, c3)) {
+				out.push(r3 * QN + c3);
+			}
+		}
+	}
+	return out;
+}
+
+function qWallOk(s, w) {
+	const [o, rs, cs] = w.split(":");
+	const r = Number(rs);
+	const c = Number(cs);
+	if ((o !== "h" && o !== "v") || !(r >= 0 && r <= 7 && c >= 0 && c <= 7)) {
+		return false;
+	}
+	const ws = s.walls;
+	if (ws.includes("h:" + r + ":" + c) || ws.includes("v:" + r + ":" + c)) {
+		return false;
+	}
+	if (o === "h" && (ws.includes("h:" + r + ":" + (c - 1)) || ws.includes("h:" + r + ":" + (c + 1)))) {
+		return false;
+	}
+	if (o === "v" && (ws.includes("v:" + (r - 1) + ":" + c) || ws.includes("v:" + (r + 1) + ":" + c))) {
+		return false;
+	}
+	const ws2 = ws.concat([w]);
+	return qPath(ws2, s.pos[0], QGOAL[0]) && qPath(ws2, s.pos[1], QGOAL[1]);
+}
+
+GAMES.wall = {
+	name: "벽 미로",
+	style: "쿼리도 스타일",
+	time: "10~15분",
+	mania: true,
+	rule: "말을 한 칸 옮기거나 벽을 하나 세워요. 맞은편 끝줄에 먼저 닿으면 승리. 벽으로 길을 완전히 막을 수는 없어요.",
+	init() {
+		return { pos: [76, 4], walls: [], left: [10, 10], last: null };
+	},
+	moves(s, p) {
+		const out = qPawnMoves(s, p).map(i => "m:" + i);
+		if (s.left[p] > 0) {
+			for (const o of ["h", "v"]) {
+				for (let r = 0; r < 8; r++) {
+					for (let c = 0; c < 8; c++) {
+						const w = o + ":" + r + ":" + c;
+						if (qWallOk(s, w)) {
+							out.push("w:" + w);
+						}
+					}
+				}
+			}
+		}
+		return out;
+	},
+	apply(s, m, p) {
+		if (typeof m !== "string") {
+			return null;
+		}
+		if (m.startsWith("m:")) {
+			const to = Number(m.slice(2));
+			if (!qPawnMoves(s, p).includes(to)) {
+				return null;
+			}
+			const pos = s.pos.slice();
+			pos[p] = to;
+			const ns = { pos: pos, walls: s.walls, left: s.left, last: m };
+			if (Math.floor(to / QN) === QGOAL[p]) {
+				return { s: ns, turn: p, over: { winner: p } };
+			}
+			return { s: ns, turn: 1 - p, over: null };
+		}
+		if (m.startsWith("w:")) {
+			const w = m.slice(2);
+			if (s.left[p] <= 0 || !qWallOk(s, w)) {
+				return null;
+			}
+			const left = s.left.slice();
+			left[p]--;
+			return { s: { pos: s.pos, walls: s.walls.concat([w]), left: left, last: m }, turn: 1 - p, over: null };
+		}
+		return null;
+	},
+	chipSub(st, seat) {
+		return "벽 " + st.s.left[seat] + "개";
+	},
+	hint(st, sel) {
+		const sl = sel || {};
+		if (sl.mode === "wall") {
+			return sl.wall ? "한 번 더 누르면 벽 완성!" : "벽 세울 틈을 눌러요";
+		}
+		return "말을 옮기거나, 벽 놓기를 눌러요";
+	},
+	render(svg, st, ui) {
+		const CELL = 30;
+		const GAP = 6;
+		const P = 5;
+		const STEP = CELL + GAP;
+		const flip = ui.flip;
+		const sel = ui.sel || { mode: "move", o: "h" };
+		const dr = r => (flip ? QN - 1 - r : r);
+		const xy = i => {
+			const r = dr(Math.floor(i / QN));
+			const c = dr(i % QN);
+			return [P + c * STEP + CELL / 2, P + r * STEP + CELL / 2];
+		};
+		svg.setAttribute("viewBox", "0 0 328 328");
+		el("rect", { x: 1, y: 1, width: 326, height: 326, rx: 18, fill: "#e9defa", stroke: "#3b2f4a", "stroke-width": 2.5 }, svg);
+		for (let r = 0; r < QN; r++) {
+			for (let c = 0; c < QN; c++) {
+				let fill = "#ffffff";
+				if (r === QGOAL[0]) {
+					fill = "#efe2da";
+				}
+				if (r === QGOAL[1]) {
+					fill = "#ffe3ee";
+				}
+				el("rect", { x: P + dr(c) * STEP, y: P + dr(r) * STEP, width: CELL, height: CELL, rx: 7, fill: fill }, svg);
+			}
+		}
+		const drawWall = (w, ghost, ok) => {
+			const [o, rs, cs] = w.split(":");
+			let r = Number(rs);
+			let c = Number(cs);
+			if (flip) {
+				r = 7 - r;
+				c = 7 - c;
+			}
+			const attrs = o === "h"
+				? { x: P + c * STEP, y: P + (r + 1) * CELL + r * GAP - 1, width: 2 * CELL + GAP, height: GAP + 2 }
+				: { x: P + (c + 1) * CELL + c * GAP - 1, y: P + r * STEP, width: GAP + 2, height: 2 * CELL + GAP };
+			attrs.rx = 3;
+			attrs.fill = ghost ? (ok ? "#ff7aa8" : "#e0555f") : "#c98a4b";
+			attrs.stroke = "#3b2f4a";
+			attrs["stroke-width"] = 1.5;
+			if (ghost) {
+				attrs.opacity = ".75";
+			}
+			const e = el("rect", attrs, svg);
+			if (!ghost && st.s.last === "w:" + w && ui.freshOk) {
+				e.setAttribute("class", "fresh");
+			}
+		};
+		st.s.walls.forEach(w => drawWall(w, false));
+		const over = st.over;
+		st.s.pos.forEach((i, seat) => {
+			const [x, y] = xy(i);
+			piece(svg, x, y, 13, seat, {
+				fresh: ui.freshOk && st.s.last === "m:" + i,
+				happy: over && over.winner === seat,
+				sleepy: over && over.winner !== seat
+			});
+		});
+		const moves = ui.canAct && sel.mode !== "wall" ? qPawnMoves(st.s, st.turn) : [];
+		moves.forEach(i => {
+			const [x, y] = xy(i);
+			spot(svg, x, y, 6, SEAT_COLOR[st.turn]);
+		});
+		if (sel.mode === "wall" && sel.wall) {
+			drawWall(sel.wall, true, qWallOk(st.s, sel.wall));
+		}
+		if (!ui.canAct) {
+			return;
+		}
+		if (sel.mode === "wall") {
+			const hit = el("rect", { x: 0, y: 0, width: 328, height: 328, fill: "transparent" }, svg);
+			hit.addEventListener("click", ev => {
+				const p = svgPoint(svg, ev);
+				let c = Math.round((p.x - P + GAP / 2) / STEP) - 1;
+				let r = Math.round((p.y - P + GAP / 2) / STEP) - 1;
+				c = Math.max(0, Math.min(7, c));
+				r = Math.max(0, Math.min(7, r));
+				if (flip) {
+					r = 7 - r;
+					c = 7 - c;
+				}
+				const w = sel.o + ":" + r + ":" + c;
+				if (sel.wall === w && qWallOk(st.s, w)) {
+					ui.commit("w:" + w);
+				} else {
+					ui.setSel(Object.assign({}, sel, { wall: w }));
+				}
+			});
+			return;
+		}
+		cellHits(svg, QN, P, STEP, CELL, flip, i => {
+			if (moves.includes(i)) {
+				ui.commit("m:" + i);
+			}
+		});
+	},
+	extra(st, ui) {
+		if (st.over || !ui.canAct) {
+			return null;
+		}
+		const sel = ui.sel || { mode: "move", o: "h" };
+		const left = st.s.left[st.turn];
+		const wallValid = sel.wall && qWallOk(st.s, sel.wall);
+		return h("div", { class: "stack" },
+			h("div", { class: "row" },
+				ctrlBtn("🚶 말 이동", { id: "qMove", on: sel.mode !== "wall", onclick: () => ui.setSel({ mode: "move", o: sel.o || "h" }) }),
+				ctrlBtn("🧱 벽 놓기 (" + left + ")", { id: "qWall", on: sel.mode === "wall", disabled: left <= 0, onclick: () => ui.setSel({ mode: "wall", o: sel.o || "h", wall: null }) })
+			),
+			sel.mode === "wall"
+				? h("div", { class: "row" },
+					ctrlBtn(sel.o === "h" ? "방향: 가로 ↔" : "방향: 세로 ↕", {
+						id: "qOrient",
+						onclick: () => {
+							const o = sel.o === "h" ? "v" : "h";
+							const w = sel.wall ? o + sel.wall.slice(1) : null;
+							ui.setSel({ mode: "wall", o: o, wall: w });
+						}
+					}),
+					ctrlBtn("이 벽 세우기", { id: "qPlace", cls: "mint", disabled: !wallValid, onclick: () => ui.commit("w:" + sel.wall) })
+				)
+				: null
+		);
+	}
+};
+
+/* =========================================================
+	도장 깨기 (오니타마 방식)
+	offset: [가로, 세로], 세로 음수 = 앞으로
+========================================================= */
+const OCARDS = {
+	"호랑이": [[0, -2], [0, 1]],
+	"용": [[-2, -1], [2, -1], [-1, 1], [1, 1]],
+	"개구리": [[-2, 0], [-1, -1], [1, 1]],
+	"토끼": [[2, 0], [1, -1], [-1, 1]],
+	"게": [[0, -1], [-2, 0], [2, 0]],
+	"코끼리": [[-1, -1], [1, -1], [-1, 0], [1, 0]],
+	"거위": [[-1, -1], [-1, 0], [1, 0], [1, 1]],
+	"수탉": [[1, -1], [1, 0], [-1, 0], [-1, 1]],
+	"원숭이": [[-1, -1], [1, -1], [-1, 1], [1, 1]],
+	"사마귀": [[-1, -1], [1, -1], [0, 1]],
+	"말": [[0, -1], [-1, 0], [0, 1]],
+	"소": [[0, -1], [1, 0], [0, 1]],
+	"학": [[0, -1], [-1, 1], [1, 1]],
+	"멧돼지": [[0, -1], [-1, 0], [1, 0]],
+	"장어": [[-1, -1], [-1, 1], [1, 0]],
+	"코브라": [[1, -1], [1, 1], [-1, 0]]
+};
+const OTEMPLE = [22, 2];
+
+function oDest(from, off, p) {
+	const sgn = p === 0 ? 1 : -1;
+	const r = Math.floor(from / 5) + off[1] * sgn;
+	const c = from % 5 + off[0] * sgn;
+	if (r < 0 || r > 4 || c < 0 || c > 4) {
+		return -1;
+	}
+	return r * 5 + c;
+}
+
+function oMoves(s, p, onlyCard) {
+	const out = [];
+	for (const card of s.hands[p]) {
+		if (onlyCard && card !== onlyCard) {
+			continue;
+		}
+		s.b.forEach((pc, from) => {
+			if (!pc || pc.p !== p) {
+				return;
+			}
+			for (const off of OCARDS[card]) {
+				const to = oDest(from, off, p);
+				if (to >= 0 && !(s.b[to] && s.b[to].p === p)) {
+					out.push({ card: card, from: from, to: to });
+				}
+			}
+		});
+	}
+	return out;
+}
+
+function shuffled(arr) {
+	const a = arr.slice();
+	for (let i = a.length - 1; i > 0; i--) {
+		const j = Math.floor(Math.random() * (i + 1));
+		[a[i], a[j]] = [a[j], a[i]];
+	}
+	return a;
+}
+
+GAMES.dojo = {
+	name: "도장 깨기",
+	style: "오니타마 스타일",
+	time: "10분",
+	mania: true,
+	rule: "카드 한 장을 골라 그 모양대로 말을 움직이고, 쓴 카드는 상대에게 넘어가요. 상대 대장을 잡거나 내 대장이 상대 진지(★)에 들어가면 승리.",
+	init() {
+		const k = shuffled(Object.keys(OCARDS));
+		const b = Array(25).fill(null);
+		[0, 1, 3, 4].forEach(c => {
+			b[20 + c] = { p: 0, m: false };
+			b[c] = { p: 1, m: false };
+		});
+		b[22] = { p: 0, m: true };
+		b[2] = { p: 1, m: true };
+		return { b: b, hands: [[k[0], k[1]], [k[2], k[3]]], side: k[4], last: null };
+	},
+	moves(s, p) {
+		const ms = oMoves(s, p).map(m => m.card + ":" + m.from + ":" + m.to);
+		return ms.length ? ms : s.hands[p].map(c => c + ":-1:-1");
+	},
+	apply(s, m, p) {
+		if (typeof m !== "string") {
+			return null;
+		}
+		const [card, fs, ts] = m.split(":");
+		const from = Number(fs);
+		const to = Number(ts);
+		if (!s.hands[p].includes(card)) {
+			return null;
+		}
+		const b = s.b.slice();
+		let captured = null;
+		if (from === -1) {
+			if (oMoves(s, p).length) {
+				return null;
+			}
+		} else {
+			const ok = oMoves(s, p, card).some(x => x.from === from && x.to === to);
+			if (!ok) {
+				return null;
+			}
+			captured = b[to];
+			b[to] = b[from];
+			b[from] = null;
+		}
+		const hands = [s.hands[0].slice(), s.hands[1].slice()];
+		hands[p][hands[p].indexOf(card)] = s.side;
+		const ns = { b: b, hands: hands, side: card, last: from === -1 ? null : { from: from, to: to } };
+		if ((captured && captured.m) || (from !== -1 && b[to].m && to === OTEMPLE[1 - p])) {
+			return { s: ns, turn: p, over: { winner: p } };
+		}
+		return { s: ns, turn: 1 - p, over: null, note: from === -1 ? SEAT_NAME[p] + " 움직일 곳이 없어 카드만 바꿨어요" : null };
+	},
+	hint(st, sel) {
+		return "카드 고르기 → 내 말 → 갈 곳 순서로 눌러요";
+	},
+	render(svg, st, ui) {
+		const C = 60;
+		const P = 10;
+		const flip = ui.flip;
+		const d = v => (flip ? 4 - v : v);
+		const xy = i => [P + d(i % 5) * C + C / 2, P + d(Math.floor(i / 5)) * C + C / 2];
+		const sel = ui.sel || {};
+		const card = sel.card && st.s.hands[st.turn].includes(sel.card) ? sel.card : st.s.hands[st.turn][0];
+		svg.setAttribute("viewBox", "0 0 320 320");
+		el("rect", { x: 2, y: 2, width: 316, height: 316, rx: 20, fill: "#ffeccc", stroke: "#3b2f4a", "stroke-width": 2.5 }, svg);
+		for (let i = 0; i < 25; i++) {
+			const r = d(Math.floor(i / 5));
+			const c = d(i % 5);
+			el("rect", { x: P + c * C + 2, y: P + r * C + 2, width: C - 4, height: C - 4, rx: 10, fill: (r + c) % 2 ? "#fff6e9" : "#ffe1b0" }, svg);
+		}
+		OTEMPLE.forEach((t, owner) => {
+			const [x, y] = xy(t);
+			el("rect", { x: x - C / 2 + 4, y: y - C / 2 + 4, width: C - 8, height: C - 8, rx: 9, fill: "none", stroke: SEAT_COLOR[owner], "stroke-width": 3 }, svg);
+			el("text", { x: x + C / 2 - 12, y: y - C / 2 + 18, "font-size": 12, fill: SEAT_COLOR[owner], "text-anchor": "middle" }, svg).textContent = "★";
+		});
+		if (st.s.last) {
+			const [x, y] = xy(st.s.last.from);
+			el("circle", { cx: x, cy: y, r: 6, fill: "#3b2f4a", opacity: ".15" }, svg);
+		}
+		const over = st.over;
+		st.s.b.forEach((pc, i) => {
+			if (!pc) {
+				return;
+			}
+			const [x, y] = xy(i);
+			const r = pc.m ? 23 : 18;
+			piece(svg, x, y + 2, r, pc.p, {
+				fresh: ui.freshOk && st.s.last && st.s.last.to === i,
+				happy: over && over.winner === pc.p,
+				sleepy: over && over.winner !== pc.p
+			});
+			if (pc.m) {
+				crown(svg, x, y - 18, 9);
+			}
+			if (sel.from === i) {
+				ringAt(svg, x, y + 2, r + 5);
+			}
+		});
+		let dests = [];
+		if (ui.canAct && sel.from !== undefined && sel.from !== null) {
+			dests = oMoves(st.s, st.turn, card).filter(m => m.from === sel.from).map(m => m.to);
+			dests.forEach(i => {
+				const [x, y] = xy(i);
+				spot(svg, x, y, 9, SEAT_COLOR[st.turn]);
+			});
+		}
+		if (!ui.canAct) {
+			return;
+		}
+		cellHits(svg, 5, P, C, C, flip, i => {
+			const pc = st.s.b[i];
+			if (dests.includes(i)) {
+				ui.commit(card + ":" + sel.from + ":" + i);
+				return;
+			}
+			if (pc && pc.p === st.turn) {
+				ui.setSel({ card: card, from: i });
+			}
+		});
+	},
+	extra(st, ui) {
+		const sel = ui.sel || {};
+		const flip = ui.flip;
+		const turn = st.turn;
+		const selCard = sel.card && st.s.hands[turn].includes(sel.card) ? sel.card : st.s.hands[turn][0];
+		const bottom = flip ? 1 : 0;
+		const top = 1 - bottom;
+		const cardEl = (name, owner, selectable) => {
+			const s = el("svg", { viewBox: "0 0 50 50", width: 50, height: 50 });
+			for (let r = 0; r < 5; r++) {
+				for (let c = 0; c < 5; c++) {
+					el("rect", { x: c * 10 + 0.8, y: r * 10 + 0.8, width: 8.4, height: 8.4, rx: 2, fill: "#f3ecff" }, s);
+				}
+			}
+			el("rect", { x: 20.8, y: 20.8, width: 8.4, height: 8.4, rx: 2, fill: "#3b2f4a" }, s);
+			const sg = (owner === 0 ? 1 : -1) * (flip ? -1 : 1);
+			OCARDS[name].forEach(([dx, dy]) => {
+				el("rect", { x: (2 + dx * sg) * 10 + 0.8, y: (2 + dy * sg) * 10 + 0.8, width: 8.4, height: 8.4, rx: 2, fill: SEAT_COLOR[owner] }, s);
+			});
+			const on = selectable && name === selCard;
+			return h("button", {
+				class: "ocard" + (on ? " on" : ""),
+				id: "card-" + name,
+				disabled: !selectable,
+				onclick: () => ui.setSel({ card: name, from: sel.from })
+			}, s, h("span", null, name));
+		};
+		const can = p => ui.canAct && turn === p;
+		const passBox = ui.canAct && !st.over && !oMoves(st.s, turn).length
+			? h("button", { class: "butter", id: "oPass", onclick: () => ui.commit(selCard + ":-1:-1") }, "움직일 곳이 없어요 · " + selCard + " 카드만 넘기기")
+			: null;
+		return h("div", { class: "stack" },
+			h("div", { class: "ocards" },
+				h("div", { class: "olabel" }, nameOf(st.seats[top])),
+				st.s.hands[top].map(n => cardEl(n, top, can(top))),
+				h("div", { class: "olabel" }, "다음 카드"),
+				cardEl(st.s.side, turn, false)
+			),
+			h("div", { class: "ocards" },
+				h("div", { class: "olabel" }, nameOf(st.seats[bottom])),
+				st.s.hands[bottom].map(n => cardEl(n, bottom, can(bottom)))
+			),
+			passBox
+		);
+	}
+};
+
+/* =========================================================
+	구름 탑 (산토리니 방식)
+========================================================= */
+function adj8(i) {
+	const r = Math.floor(i / 5);
+	const c = i % 5;
+	const out = [];
+	for (let dr = -1; dr <= 1; dr++) {
+		for (let dc = -1; dc <= 1; dc++) {
+			if ((dr || dc) && r + dr >= 0 && r + dr < 5 && c + dc >= 0 && c + dc < 5) {
+				out.push((r + dr) * 5 + c + dc);
+			}
+		}
+	}
+	return out;
+}
+
+function tOcc(s) {
+	return new Set(s.w[0].concat(s.w[1]).filter(x => x >= 0));
+}
+
+function tPlays(s, p) {
+	const occ = tOcc(s);
+	const out = [];
+	s.w[p].forEach((from, wi) => {
+		if (from < 0) {
+			return;
+		}
+		adj8(from).forEach(to => {
+			if (occ.has(to) || s.h[to] >= 4 || s.h[to] > s.h[from] + 1) {
+				return;
+			}
+			if (s.h[to] === 3 && s.h[from] < 3) {
+				out.push("m:" + wi + ":" + to + ":-1");
+				return;
+			}
+			adj8(to).forEach(b => {
+				if ((b !== from && occ.has(b)) || s.h[b] >= 4) {
+					return;
+				}
+				out.push("m:" + wi + ":" + to + ":" + b);
+			});
+		});
+	});
+	return out;
+}
+
+GAMES.tower = {
+	name: "구름 탑",
+	style: "산토리니 스타일",
+	time: "10~15분",
+	mania: true,
+	rule: "일꾼을 한 칸 옮긴 뒤 옆 칸에 한 층을 쌓아요. 한 번에 한 층까지만 올라갈 수 있고, 4층은 지붕이라 못 올라가요. 3층에 먼저 올라서면 승리!",
+	init() {
+		return { h: Array(25).fill(0), w: [[-1, -1], [-1, -1]], setup: true, last: null };
+	},
+	moves(s, p) {
+		if (s.setup) {
+			const occ = tOcc(s);
+			const out = [];
+			for (let i = 0; i < 25; i++) {
+				if (!occ.has(i)) {
+					out.push("s:" + i);
+				}
+			}
+			return out;
+		}
+		return tPlays(s, p);
+	},
+	apply(s, m, p) {
+		if (typeof m !== "string") {
+			return null;
+		}
+		const parts = m.split(":");
+		if (parts[0] === "s") {
+			const i = Number(parts[1]);
+			if (!s.setup || !(i >= 0 && i < 25) || tOcc(s).has(i)) {
+				return null;
+			}
+			const w = [s.w[0].slice(), s.w[1].slice()];
+			const slot = w[p].indexOf(-1);
+			if (slot < 0) {
+				return null;
+			}
+			w[p][slot] = i;
+			const done = w[0].every(x => x >= 0) && w[1].every(x => x >= 0);
+			return { s: { h: s.h, w: w, setup: !done, last: { to: i } }, turn: 1 - p, over: null };
+		}
+		if (s.setup || !tPlays(s, p).includes(m)) {
+			return null;
+		}
+		const wi = Number(parts[1]);
+		const to = Number(parts[2]);
+		const b = Number(parts[3]);
+		const from = s.w[p][wi];
+		const w = [s.w[0].slice(), s.w[1].slice()];
+		w[p][wi] = to;
+		const hgt = s.h.slice();
+		if (b >= 0) {
+			hgt[b]++;
+		}
+		const ns = { h: hgt, w: w, setup: false, last: { from: from, to: to, b: b } };
+		if (b === -1) {
+			return { s: ns, turn: p, over: { winner: p } };
+		}
+		if (!tPlays(ns, 1 - p).length) {
+			return { s: ns, turn: p, over: { winner: p }, note: SEAT_NAME[1 - p] + " 일꾼이 갇혔어요!" };
+		}
+		return { s: ns, turn: 1 - p, over: null };
+	},
+	hint(st, sel) {
+		const sl = sel || {};
+		if (st.s.setup) {
+			return "빈 칸을 눌러 일꾼을 내려놓아요";
+		}
+		if (sl.to !== undefined && sl.to !== null) {
+			return "③ 쌓을 칸을 눌러요";
+		}
+		if (sl.wi !== undefined && sl.wi !== null) {
+			return "② 옮길 칸을 눌러요";
+		}
+		return "① 움직일 일꾼을 눌러요";
+	},
+	render(svg, st, ui) {
+		const C = 60;
+		const P = 10;
+		const xy = i => [P + (i % 5) * C + C / 2, P + Math.floor(i / 5) * C + C / 2];
+		const sel = ui.sel || {};
+		svg.setAttribute("viewBox", "0 0 320 320");
+		el("rect", { x: 2, y: 2, width: 316, height: 316, rx: 20, fill: "#bfe8f7", stroke: "#3b2f4a", "stroke-width": 2.5 }, svg);
+		const plays = ui.canAct && !st.s.setup ? tPlays(st.s, st.turn) : [];
+		for (let i = 0; i < 25; i++) {
+			const [x, y] = xy(i);
+			const lv = st.s.h[i];
+			el("rect", { x: x - 27, y: y - 27, width: 54, height: 54, rx: 12, fill: "#d8f5c9", stroke: "#a9dc95", "stroke-width": 1.5 }, svg);
+			const fills = ["", "#fffaf4", "#f3ecff", "#e2d7ff"];
+			for (let k = 1; k <= Math.min(lv, 3); k++) {
+				const inset = 3 + (k - 1) * 7;
+				const g = el("rect", { x: x - 27 + inset, y: y - 27 + inset, width: 54 - inset * 2, height: 54 - inset * 2, rx: 9, fill: fills[k], stroke: "#3b2f4a", "stroke-width": 1.6 }, svg);
+				if (ui.freshOk && st.s.last && st.s.last.b === i && k === Math.min(lv, 3)) {
+					g.setAttribute("class", "fresh");
+				}
+			}
+			if (lv >= 4) {
+				const dm = el("g", {}, svg);
+				el("circle", { cx: x, cy: y, r: 15, fill: "#4f8be8", stroke: "#3b2f4a", "stroke-width": 1.8 }, dm);
+				el("ellipse", { cx: x - 5, cy: y - 6, rx: 5, ry: 3, fill: "#a9c8ff" }, dm);
+				if (ui.freshOk && st.s.last && st.s.last.b === i) {
+					dm.setAttribute("class", "fresh");
+				}
+			}
+			if (lv > 0 && lv < 4) {
+				el("text", { x: x + 21, y: y + 24, "font-size": 11, fill: "#3b2f4a", "text-anchor": "middle", "font-family": "Jua, sans-serif" }, svg).textContent = lv + "층";
+			}
+		}
+		const over = st.over;
+		const ghostTo = sel.to !== undefined && sel.to !== null ? sel.to : null;
+		st.s.w.forEach((ws, seat) => {
+			ws.forEach((pos, wi) => {
+				if (pos < 0) {
+					return;
+				}
+				const moving = seat === st.turn && sel.wi === wi && ghostTo !== null;
+				const at = moving ? ghostTo : pos;
+				const [x, y] = xy(at);
+				const lift = Math.min(st.s.h[at], 3) * 2;
+				piece(svg, x, y - lift, 15, seat, {
+					fresh: ui.freshOk && st.s.last && st.s.last.to === pos,
+					happy: over && over.winner === seat,
+					sleepy: over && over.winner !== seat
+				});
+				if (seat === st.turn && sel.wi === wi && ui.canAct) {
+					ringAt(svg, x, y - lift, 20);
+				}
+			});
+		});
+		let targets = [];
+		let mode = "none";
+		if (ui.canAct && st.s.setup) {
+			mode = "setup";
+		} else if (ui.canAct && sel.wi !== undefined && sel.wi !== null) {
+			if (ghostTo !== null) {
+				mode = "build";
+				const pre = "m:" + sel.wi + ":" + ghostTo + ":";
+				targets = plays.filter(m => m.startsWith(pre)).map(m => Number(m.split(":")[3])).filter(b => b >= 0);
+				targets.forEach(i => {
+					const [x, y] = xy(i);
+					el("rect", { x: x - 24, y: y - 24, width: 48, height: 48, rx: 10, fill: "#ffd66b", opacity: ".45", stroke: "#3b2f4a", "stroke-dasharray": "4 3" }, svg);
+					el("text", { x: x, y: y + 6, "font-size": 17, "text-anchor": "middle" }, svg).textContent = "🔨";
+				});
+			} else {
+				mode = "move";
+				targets = [...new Set(plays.filter(m => m.startsWith("m:" + sel.wi + ":")).map(m => Number(m.split(":")[2])))];
+				targets.forEach(i => {
+					const [x, y] = xy(i);
+					spot(svg, x, y, 8, SEAT_COLOR[st.turn]);
+				});
+			}
+		}
+		if (!ui.canAct) {
+			return;
+		}
+		cellHits(svg, 5, P, C, C, false, i => {
+			if (mode === "setup") {
+				ui.commit("s:" + i);
+				return;
+			}
+			const myW = st.s.w[st.turn].indexOf(i);
+			if (mode === "build" && targets.includes(i)) {
+				ui.commit("m:" + sel.wi + ":" + ghostTo + ":" + i);
+				return;
+			}
+			if (mode === "move" && targets.includes(i)) {
+				if (plays.includes("m:" + sel.wi + ":" + i + ":-1")) {
+					ui.commit("m:" + sel.wi + ":" + i + ":-1");
+				} else {
+					ui.setSel({ wi: sel.wi, to: i });
+				}
+				return;
+			}
+			if (myW >= 0) {
+				ui.setSel({ wi: myW, to: null });
+				return;
+			}
+			if (mode === "build") {
+				ui.setSel({ wi: sel.wi, to: null });
+			}
+		});
+	}
+};
+
+/* =========================================================
+	벌집 (하이브 방식)
+========================================================= */
+const HDIRS = [[1, 0], [1, -1], [0, -1], [-1, 0], [-1, 1], [0, 1]];
+const HBUG = { Q: "🐝", A: "🐜", G: "🦗", S: "🕷️", B: "🪲" };
+const HBUG_NAME = { Q: "여왕벌", A: "개미", G: "메뚜기", S: "거미", B: "딱정벌레" };
+const HSTART = { Q: 1, A: 3, G: 3, S: 2, B: 2 };
+
+function hk(q, r) {
+	return q + "," + r;
+}
+
+function hp(k) {
+	const [q, r] = k.split(",").map(Number);
+	return [q, r];
+}
+
+function hNb(k) {
+	const [q, r] = hp(k);
+	return HDIRS.map(([dq, dr]) => hk(q + dq, r + dr));
+}
+
+function hOccupied(b) {
+	return Object.keys(b).filter(k => b[k] && b[k].length);
+}
+
+function hConnected(keys) {
+	if (keys.length <= 1) {
+		return true;
+	}
+	const set = new Set(keys);
+	const seen = new Set([keys[0]]);
+	const q = [keys[0]];
+	while (q.length) {
+		const k = q.pop();
+		for (const n of hNb(k)) {
+			if (set.has(n) && !seen.has(n)) {
+				seen.add(n);
+				q.push(n);
+			}
+		}
+	}
+	return seen.size === set.size;
+}
+
+function hPlacements(s, p) {
+	const occ = hOccupied(s.b);
+	if (s.placed[p] === 0) {
+		if (!occ.length) {
+			return ["0,0"];
+		}
+		if (s.placed[1 - p] === 1 && occ.length === 1) {
+			return hNb(occ[0]);
+		}
+	}
+	const cand = new Set();
+	occ.forEach(k => hNb(k).forEach(n => {
+		if (!s.b[n] || !s.b[n].length) {
+			cand.add(n);
+		}
+	}));
+	return [...cand].filter(k => {
+		let mine = false;
+		for (const n of hNb(k)) {
+			const st = s.b[n];
+			if (st && st.length) {
+				if (st[st.length - 1].p !== p) {
+					return false;
+				}
+				mine = true;
+			}
+		}
+		return mine;
+	});
+}
+
+function hMustQueen(s, p) {
+	return s.placed[p] === 3 && s.hand[p].Q > 0;
+}
+
+function hMovesFrom(s, from, p) {
+	const stack = s.b[from];
+	if (!stack || !stack.length) {
+		return [];
+	}
+	const pc = stack[stack.length - 1];
+	if (pc.p !== p || s.hand[p].Q > 0) {
+		return [];
+	}
+	const occ = hOccupied(s.b);
+	if (stack.length === 1 && !hConnected(occ.filter(k => k !== from))) {
+		return [];
+	}
+	const hgt = k => {
+		const n = s.b[k] ? s.b[k].length : 0;
+		return k === from ? n - 1 : n;
+	};
+	const common = (a, i) => {
+		const [q, r] = hp(a);
+		const d1 = HDIRS[(i + 5) % 6];
+		const d2 = HDIRS[(i + 1) % 6];
+		return [hk(q + d1[0], r + d1[1]), hk(q + d2[0], r + d2[1])];
+	};
+	const slides = a => {
+		const out = [];
+		const [q, r] = hp(a);
+		HDIRS.forEach(([dq, dr], i) => {
+			const b = hk(q + dq, r + dr);
+			if (hgt(b) > 0) {
+				return;
+			}
+			const [c1, c2] = common(a, i);
+			const o1 = hgt(c1) > 0;
+			const o2 = hgt(c2) > 0;
+			if (o1 && o2) {
+				return;
+			}
+			if (!o1 && !o2) {
+				return;
+			}
+			out.push(b);
+		});
+		return out;
+	};
+	const res = new Set();
+	if (pc.k === "Q") {
+		slides(from).forEach(b => res.add(b));
+	} else if (pc.k === "A") {
+		const seen = new Set([from]);
+		const q = [from];
+		while (q.length) {
+			const a = q.shift();
+			for (const b of slides(a)) {
+				if (!seen.has(b)) {
+					seen.add(b);
+					res.add(b);
+					q.push(b);
+				}
+			}
+		}
+	} else if (pc.k === "S") {
+		const walk = (a, depth, path) => {
+			if (depth === 3) {
+				res.add(a);
+				return;
+			}
+			for (const b of slides(a)) {
+				if (!path.includes(b)) {
+					walk(b, depth + 1, path.concat([b]));
+				}
+			}
+		};
+		walk(from, 0, [from]);
+	} else if (pc.k === "G") {
+		const [q0, r0] = hp(from);
+		HDIRS.forEach(([dq, dr]) => {
+			let q = q0 + dq;
+			let r = r0 + dr;
+			if (hgt(hk(q, r)) === 0) {
+				return;
+			}
+			while (hgt(hk(q, r)) > 0) {
+				q += dq;
+				r += dr;
+			}
+			res.add(hk(q, r));
+		});
+	} else if (pc.k === "B") {
+		const [q, r] = hp(from);
+		HDIRS.forEach(([dq, dr], i) => {
+			const b = hk(q + dq, r + dr);
+			const [c1, c2] = common(from, i);
+			const hs = hgt(from);
+			const hd = hgt(b);
+			if (Math.min(hgt(c1), hgt(c2)) > Math.max(hs, hd)) {
+				return;
+			}
+			if (hs === 0 && hd === 0 && hgt(c1) === 0 && hgt(c2) === 0) {
+				return;
+			}
+			res.add(b);
+		});
+	}
+	res.delete(from);
+	return [...res];
+}
+
+function hLegal(s, p) {
+	const out = [];
+	const kinds = hMustQueen(s, p) ? ["Q"] : Object.keys(s.hand[p]).filter(k => s.hand[p][k] > 0);
+	if (kinds.length) {
+		const pl = hPlacements(s, p);
+		kinds.forEach(k => pl.forEach(c => out.push("p:" + k + ":" + c.replace(",", ":"))));
+	}
+	hOccupied(s.b).forEach(from => {
+		hMovesFrom(s, from, p).forEach(to => out.push("m:" + from.replace(",", ":") + ":" + to.replace(",", ":")));
+	});
+	return out;
+}
+
+function hQueenSurrounded(s, p) {
+	for (const k of hOccupied(s.b)) {
+		if (s.b[k].some(x => x.p === p && x.k === "Q")) {
+			return hNb(k).every(n => s.b[n] && s.b[n].length);
+		}
+	}
+	return false;
+}
+
+GAMES.hive = {
+	name: "벌집",
+	style: "하이브 스타일",
+	time: "15분",
+	mania: true,
+	rule: "판 없이 벌레 타일로 벌집을 키워요. 🐝여왕벌 1칸 · 🐜개미 둘레 어디든 · 🦗메뚜기 일직선 점프 · 🕷️거미 딱 3칸 · 🪲딱정벌레 1칸, 위에 올라타기. 4번째 놓기까지 여왕벌을 꼭 놓아야 하고, 상대 여왕벌을 6면 포위하면 승리!",
+	init() {
+		return { b: {}, hand: [Object.assign({}, HSTART), Object.assign({}, HSTART)], placed: [0, 0], last: null };
+	},
+	moves(s, p) {
+		const l = hLegal(s, p);
+		return l.length ? l : ["pass"];
+	},
+	apply(s, m, p) {
+		if (typeof m !== "string") {
+			return null;
+		}
+		const b = {};
+		Object.keys(s.b).forEach(k => {
+			if (s.b[k] && s.b[k].length) {
+				b[k] = s.b[k].slice();
+			}
+		});
+		const hand = [Object.assign({}, s.hand[0]), Object.assign({}, s.hand[1])];
+		const placed = s.placed.slice();
+		const parts = m.split(":");
+		let last = null;
+		if (parts[0] === "p") {
+			const kind = parts[1];
+			const key = parts[2] + "," + parts[3];
+			if (!hand[p][kind] || (hMustQueen(s, p) && kind !== "Q") || !hPlacements(s, p).includes(key)) {
+				return null;
+			}
+			b[key] = [{ p: p, k: kind }];
+			hand[p][kind]--;
+			placed[p]++;
+			last = key;
+		} else if (parts[0] === "m") {
+			const from = parts[1] + "," + parts[2];
+			const to = parts[3] + "," + parts[4];
+			if (!hMovesFrom(s, from, p).includes(to)) {
+				return null;
+			}
+			const pc = b[from].pop();
+			if (!b[from].length) {
+				delete b[from];
+			}
+			b[to] = (b[to] || []).concat([pc]);
+			last = to;
+		} else if (parts[0] === "pass") {
+			if (hLegal(s, p).length) {
+				return null;
+			}
+		} else {
+			return null;
+		}
+		const ns = { b: b, hand: hand, placed: placed, last: last };
+		const s0 = hQueenSurrounded(ns, 0);
+		const s1 = hQueenSurrounded(ns, 1);
+		if (s0 && s1) {
+			return { s: ns, turn: p, over: { winner: -1 } };
+		}
+		if (s0 || s1) {
+			return { s: ns, turn: p, over: { winner: s0 ? 1 : 0 } };
+		}
+		const q = 1 - p;
+		if (!hLegal(ns, q).length) {
+			if (!hLegal(ns, p).length) {
+				return { s: ns, turn: p, over: { winner: -1 } };
+			}
+			return { s: ns, turn: p, over: null, note: SEAT_NAME[q] + " 둘 수 있는 게 없어서 패스!" };
+		}
+		return { s: ns, turn: q, over: null };
+	},
+	hint(st, sel) {
+		if (hMustQueen(st.s, st.turn)) {
+			return "이번엔 여왕벌 🐝을 꼭 놓아야 해요!";
+		}
+		const sl = sel || {};
+		if (sl.place) {
+			return HBUG_NAME[sl.place] + " 놓을 자리를 눌러요";
+		}
+		if (sl.from) {
+			return "갈 곳을 눌러요";
+		}
+		return "아래에서 벌레를 고르거나, 판 위 내 벌레를 눌러요";
+	},
+	chipSub(st, seat) {
+		return "남은 " + Object.values(st.s.hand[seat]).reduce((a, b) => a + b, 0) + "마리";
+	},
+	render(svg, st, ui) {
+		const R = 24;
+		const SQ = Math.sqrt(3);
+		const px = k => {
+			const [q, r] = hp(k);
+			return [R * SQ * (q + r / 2), R * 1.5 * r];
+		};
+		const sel = ui.sel || {};
+		const occ = hOccupied(st.s.b);
+		const cells = new Set(occ);
+		occ.forEach(k => hNb(k).forEach(n => cells.add(n)));
+		if (!cells.size) {
+			cells.add("0,0");
+		}
+		let minX = Infinity;
+		let minY = Infinity;
+		let maxX = -Infinity;
+		let maxY = -Infinity;
+		cells.forEach(k => {
+			const [x, y] = px(k);
+			minX = Math.min(minX, x);
+			maxX = Math.max(maxX, x);
+			minY = Math.min(minY, y);
+			maxY = Math.max(maxY, y);
+		});
+		const side = Math.max(maxX - minX, maxY - minY, R * 8) + R * 2.6;
+		const cx = (minX + maxX) / 2;
+		const cy = (minY + maxY) / 2;
+		svg.setAttribute("viewBox", (cx - side / 2) + " " + (cy - side / 2) + " " + side + " " + side);
+		el("rect", { x: cx - side / 2 + 1, y: cy - side / 2 + 1, width: side - 2, height: side - 2, rx: side * 0.06, fill: "#fff3c4", stroke: "#3b2f4a", "stroke-width": side / 140 }, svg);
+		const hexPts = (x, y, rr) => {
+			const pts = [];
+			for (let i = 0; i < 6; i++) {
+				const a = Math.PI / 180 * (60 * i - 30);
+				pts.push((x + rr * Math.cos(a)).toFixed(2) + "," + (y + rr * Math.sin(a)).toFixed(2));
+			}
+			return pts.join(" ");
+		};
+		let targets = [];
+		if (ui.canAct && !st.over) {
+			if (sel.place) {
+				targets = hPlacements(st.s, st.turn);
+			} else if (sel.from) {
+				targets = hMovesFrom(st.s, sel.from, st.turn);
+			}
+		}
+		targets.forEach(k => cells.add(k));
+		const over = st.over;
+		const onCell = k => {
+			if (!ui.canAct) {
+				return;
+			}
+			if (targets.includes(k)) {
+				if (sel.place) {
+					ui.commit("p:" + sel.place + ":" + k.replace(",", ":"));
+				} else {
+					ui.commit("m:" + sel.from.replace(",", ":") + ":" + k.replace(",", ":"));
+				}
+				return;
+			}
+			const stack = st.s.b[k];
+			if (stack && stack.length && stack[stack.length - 1].p === st.turn) {
+				if (st.s.hand[st.turn].Q > 0) {
+					toast("여왕벌 🐝을 먼저 놓아야 움직일 수 있어요");
+					return;
+				}
+				ui.setSel({ from: k });
+				return;
+			}
+			ui.setSel(null);
+		};
+		cells.forEach(k => {
+			const [x, y] = px(k);
+			const g = el("g", { style: "cursor:pointer" }, svg);
+			const stack = st.s.b[k];
+			if (stack && stack.length) {
+				const top = stack[stack.length - 1];
+				el("polygon", { points: hexPts(x + 1.5, y + 2.5, R * 0.95), fill: "rgba(59,47,74,.22)" }, g);
+				const tile = el("polygon", {
+					points: hexPts(x, y, R * 0.95),
+					fill: top.p === 0 ? "#7a5544" : "#fffaf4",
+					stroke: sel.from === k ? "#ff7aa8" : "#3b2f4a",
+					"stroke-width": sel.from === k ? 4 : 2,
+					"stroke-linejoin": "round"
+				}, g);
+				if (over && top.k === "Q" && over.winner !== -1 && over.winner !== top.p) {
+					tile.setAttribute("stroke", "#e0555f");
+					tile.setAttribute("stroke-width", 4);
+				}
+				const t = el("text", { x: x, y: y + R * 0.08, "font-size": R * 0.95, "text-anchor": "middle", "dominant-baseline": "central" }, g);
+				t.textContent = HBUG[top.k];
+				if (ui.freshOk && st.s.last === k) {
+					g.setAttribute("class", "fresh");
+				}
+				if (stack.length > 1) {
+					el("circle", { cx: x + R * 0.62, cy: y - R * 0.55, r: R * 0.3, fill: "#ff7aa8", stroke: "#3b2f4a", "stroke-width": 1.5 }, g);
+					el("text", { x: x + R * 0.62, y: y - R * 0.55, "font-size": R * 0.38, fill: "#fff", "text-anchor": "middle", "dominant-baseline": "central", "font-family": "Jua, sans-serif" }, g).textContent = stack.length;
+				}
+			} else {
+				el("polygon", { points: hexPts(x, y, R * 0.9), fill: targets.includes(k) ? "rgba(255,122,168,.28)" : "transparent", stroke: targets.includes(k) ? "#ff7aa8" : "#f0dd9a", "stroke-width": targets.includes(k) ? 2.5 : 1.2, "stroke-dasharray": "4 3" }, g);
+				if (targets.includes(k)) {
+					el("circle", { cx: x, cy: y, r: 5, fill: "#ff7aa8" }, g);
+				}
+			}
+			g.addEventListener("click", () => onCell(k));
+		});
+		if (!occ.length) {
+			const [x, y] = px("0,0");
+			el("text", { x: x, y: y + R * 1.9, "font-size": 11, fill: "#7d6f8c", "text-anchor": "middle", "font-family": "Gowun Dodum, sans-serif" }, svg).textContent = "첫 벌레를 여기에!";
+		}
+	},
+	extra(st, ui) {
+		const sel = ui.sel || {};
+		const bottom = ui.flip ? 1 : 0;
+		const order = [1 - bottom, bottom];
+		const must = hMustQueen(st.s, st.turn);
+		const tray = seat => {
+			const can = ui.canAct && !st.over && seat === st.turn;
+			return h("div", { class: "tray" },
+				h("div", { class: "olabel" }, nameOf(st.seats[seat])),
+				h("div", { class: "trayitems" },
+					Object.keys(HSTART).map(k => {
+						const n = st.s.hand[seat][k];
+						return h("button", {
+							class: "bug b" + seat + (can && sel.place === k ? " on" : ""),
+							id: "bug-" + seat + "-" + k,
+							disabled: !can || n === 0 || (must && k !== "Q"),
+							title: HBUG_NAME[k],
+							onclick: () => ui.setSel(sel.place === k ? null : { place: k })
+						}, h("span", { class: "em" }, HBUG[k]), h("span", { class: "cnt" }, "×" + n));
+					})
+				)
+			);
+		};
+		const passBtn = ui.canAct && !st.over && !hLegal(st.s, st.turn).length
+			? h("button", { class: "butter", id: "hPass", onclick: () => ui.commit("pass") }, "둘 수 있는 게 없어요 · 패스")
+			: null;
+		return h("div", { class: "stack" }, order.map(tray), passBtn);
+	}
+};
+
+const MANIA_ORDER = ["hive", "dojo", "tower", "wall"];
+const LIGHT_ORDER = ["omok", "four", "reversi", "dots"];
+const GAME_ORDER = MANIA_ORDER.concat(LIGHT_ORDER);
 
 function drawWinLine(svg, line, xy) {
 	const a = xy(line[0]);
@@ -1041,6 +2332,7 @@ function receiveState(d) {
 		S.freshKey = d.gid + ":" + d.seq;
 		S.game = d;
 		S.pending = null;
+		S.sel = null;
 		render();
 		return;
 	}
@@ -1188,6 +2480,7 @@ function startGame(game, local, seatsOverride) {
 	const st = newState(game, seats);
 	S.local = local;
 	S.pending = null;
+	S.sel = null;
 	S.game = st;
 	S.history = [];
 	S.resultShownFor = null;
@@ -1206,6 +2499,7 @@ function openOnline(d) {
 	S.local = false;
 	S.game = d;
 	S.pending = null;
+	S.sel = null;
 	S.resultShownFor = d.over ? d.gid : null;
 	S.freshKey = null;
 	go("game");
@@ -1242,10 +2536,14 @@ function tap(move) {
 }
 
 function commit(move) {
+	if (!canAct()) {
+		return;
+	}
 	const st = S.game;
 	const G = GAMES[st.game];
 	const res = G.apply(st.s, move, st.turn);
 	S.pending = null;
+	S.sel = null;
 	if (!res) {
 		bumpMsg("거기엔 둘 수 없어요");
 		return;
@@ -1279,6 +2577,7 @@ function undo() {
 	}
 	S.game = S.history.pop();
 	S.pending = null;
+	S.sel = null;
 	S.freshKey = null;
 	render();
 }
@@ -1490,7 +2789,7 @@ function playerChip(cid, seat, opts) {
 
 function miniPreview(g) {
 	const s = el("svg", { viewBox: "0 0 120 56" });
-	const bg = { omok: "#ffe3a3", four: "#b9a6ff", reversi: "#9fe3c9", dots: "#ffffff" }[g];
+	const bg = { omok: "#ffe3a3", four: "#b9a6ff", reversi: "#9fe3c9", dots: "#ffffff", hive: "#fff3c4", dojo: "#ffeccc", tower: "#bfe8f7", wall: "#e9defa" }[g];
 	el("rect", { x: 1, y: 1, width: 118, height: 54, rx: 12, fill: bg, stroke: "#3b2f4a", "stroke-width": 2 }, s);
 	if (g === "omok") {
 		for (let i = 0; i < 5; i++) {
@@ -1514,6 +2813,48 @@ function miniPreview(g) {
 		piece(s, 48, 38, 8, 0, {});
 		piece(s, 66, 38, 8, 1, {});
 		piece(s, 84, 38, 8, 0, { happy: true });
+	} else if (g === "hive") {
+		const hx = (x, y, fill, t) => {
+			const pts = [];
+			for (let i = 0; i < 6; i++) {
+				const a = Math.PI / 180 * (60 * i - 30);
+				pts.push((x + 11 * Math.cos(a)).toFixed(1) + "," + (y + 11 * Math.sin(a)).toFixed(1));
+			}
+			el("polygon", { points: pts.join(" "), fill: fill, stroke: "#3b2f4a", "stroke-width": 1.5 }, s);
+			el("text", { x: x, y: y + 1, "font-size": 11, "text-anchor": "middle", "dominant-baseline": "central" }, s).textContent = t;
+		};
+		hx(41, 28, "#7a5544", "🐝");
+		hx(60, 28, "#fffaf4", "🐜");
+		hx(50.5, 12, "#fffaf4", "🕷️");
+		hx(79, 28, "#7a5544", "🦗");
+		hx(69.5, 44, "#fffaf4", "🪲");
+	} else if (g === "dojo") {
+		for (let c = 0; c < 5; c++) {
+			el("rect", { x: 20 + c * 16, y: 8, width: 14, height: 40, rx: 3, fill: c % 2 ? "#fff6e9" : "#ffe1b0" }, s);
+		}
+		piece(s, 43, 18, 6.5, 1, {});
+		piece(s, 60, 38, 8.5, 0, {});
+		crown(s, 60, 30, 4);
+		el("rect", { x: 92, y: 14, width: 20, height: 28, rx: 4, fill: "#fff", stroke: "#3b2f4a", "stroke-width": 1.5, transform: "rotate(8 102 28)" }, s);
+		el("rect", { x: 99, y: 22, width: 5, height: 5, fill: "#ff7aa8", transform: "rotate(8 102 28)" }, s);
+	} else if (g === "tower") {
+		[[30, 1], [55, 2], [80, 3]].forEach(([x, lv]) => {
+			for (let k = 1; k <= lv; k++) {
+				el("rect", { x: x - 12 + (k - 1) * 3, y: 44 - k * 9, width: 24 - (k - 1) * 6, height: 9, rx: 2, fill: ["", "#fffaf4", "#f3ecff", "#e2d7ff"][k], stroke: "#3b2f4a", "stroke-width": 1.4 }, s);
+			}
+		});
+		el("path", { d: "M92 17 a10 10 0 0 1 20 0 z", fill: "#4f8be8", stroke: "#3b2f4a", "stroke-width": 1.4 }, s);
+		piece(s, 80, 11, 6.5, 0, { happy: true });
+	} else if (g === "wall") {
+		for (let r = 0; r < 3; r++) {
+			for (let c = 0; c < 6; c++) {
+				el("rect", { x: 14 + c * 16, y: 5 + r * 16, width: 13, height: 13, rx: 3, fill: "#fff" }, s);
+			}
+		}
+		el("rect", { x: 30, y: 18, width: 29, height: 3.5, rx: 1.5, fill: "#c98a4b", stroke: "#3b2f4a" }, s);
+		el("rect", { x: 74.5, y: 21, width: 3.5, height: 29, rx: 1.5, fill: "#c98a4b", stroke: "#3b2f4a" }, s);
+		piece(s, 52.5, 43.5, 6, 0, {});
+		piece(s, 84.5, 11.5, 6, 1, {});
 	} else {
 		for (let r = 0; r < 3; r++) {
 			for (let c = 0; c < 5; c++) {
@@ -1525,6 +2866,21 @@ function miniPreview(g) {
 		el("path", { d: "M60 28 H78 V46", stroke: "#ff7aa8", "stroke-width": 3, fill: "none", "stroke-linecap": "round" }, s);
 	}
 	return s;
+}
+
+function gameGrid(list, pid) {
+	return h("div", { class: "games" },
+		list.map(g => {
+			const a = recFor(g, ME);
+			const b = pid ? recFor(g, pid) : null;
+			return h("button", { class: "gcard" + (GAMES[g].mania ? " mania" : ""), id: "g-" + g, onclick: () => chooseMode(g) },
+				miniPreview(g),
+				h("div", { class: "gt" }, GAMES[g].name),
+				h("div", { class: "gm" }, (GAMES[g].style ? GAMES[g].style + " · " : "") + GAMES[g].time),
+				h("div", { class: "rec" }, b && (a.w + b.w + a.d) ? "나 " + a.w + " : " + b.w + " " + nameOf(pid) : "아직 안 해 봤어요")
+			);
+		})
+	);
 }
 
 function viewRoom() {
@@ -1546,19 +2902,10 @@ function viewRoom() {
 				h("button", { class: "small pink", id: "btnResume", onclick: () => openOnline(rg) }, "이어서 하기")
 			)
 			: null,
-		h("h3", null, "뭐 하고 놀까?"),
-		h("div", { class: "games" },
-			GAME_ORDER.map(g => {
-				const a = recFor(g, ME);
-				const b = pid ? recFor(g, pid) : null;
-				return h("button", { class: "gcard", id: "g-" + g, onclick: () => chooseMode(g) },
-					miniPreview(g),
-					h("div", { class: "gt" }, GAMES[g].name),
-					h("div", { class: "gm" }, GAMES[g].time),
-					h("div", { class: "rec" }, b ? "나 " + a.w + " : " + b.w + " " + nameOf(pid) : "전적 없음")
-				);
-			})
-		),
+		h("div", { class: "sec" }, h("h3", null, "매니아 픽"), h("span", { class: "muted" }, "보드게임 덕후들이 사랑하는 2인 게임")),
+		gameGrid(MANIA_ORDER, pid),
+		h("div", { class: "sec" }, h("h3", null, "가볍게 한 판"), h("span", { class: "muted" }, "규칙 설명 필요 없는 클래식")),
+		gameGrid(LIGHT_ORDER, pid),
 		h("div", { class: "row" },
 			h("button", { id: "btnStats", onclick: () => go("stats") }, "📊 전적·승률"),
 			h("button", { id: "btnShare2", onclick: share }, "🔗 링크 공유")
@@ -1577,6 +2924,7 @@ function chooseMode(g) {
 		h("div", { class: "sheet" },
 			miniPreview(g),
 			h("div", { class: "big" }, G.name),
+			G.style ? h("p", { class: "tag" }, G.style) : null,
 			h("p", { class: "muted" }, G.rule),
 			h("p", { class: "muted" }, "누가 먼저 둘지는 랜덤! 다음 판은 순서를 바꿔요."),
 			h("div", { class: "stack" },
@@ -1625,6 +2973,8 @@ function viewGame() {
 		msg = over.winner === -1 ? "무승부! 사이좋게 🤝" : nameOf(st.seats[over.winner]) + " 승리! 🎉";
 	} else if (st.note) {
 		msg = st.note;
+	} else if (G.hint && canAct()) {
+		msg = (S.local ? nameOf(st.seats[st.turn]) + " · " : "") + G.hint(st, S.sel);
 	} else if (S.local) {
 		msg = nameOf(st.seats[st.turn]) + " 차례 (" + SEAT_NAME[st.turn] + ")";
 	} else {
@@ -1635,16 +2985,25 @@ function viewGame() {
 	const chips = st.seats.map((cid, seat) => playerChip(cid, seat, {
 		turn: !over && st.turn === seat,
 		face: over ? (over.winner === seat ? { happy: true } : (over.winner === -1 ? {} : { sleepy: true })) : {},
-		sub: SEAT_NAME[seat] + (seat === 0 ? " · 선" : " · 후") + (score ? " · " + score[seat] + "개" : "")
+		sub: SEAT_NAME[seat] + (seat === 0 ? " · 선" : " · 후") + (score ? " · " + score[seat] + "개" : "") + (G.chipSub ? " · " + G.chipSub(st, seat) : "")
 	}));
 
 	const svg = el("svg", { id: "board" });
-	G.render(svg, st, {
+	const ui = {
 		pending: S.pending,
 		freshOk: freshOk,
 		canAct: canAct(),
-		tap: tap
-	});
+		tap: tap,
+		sel: S.sel,
+		setSel: v => {
+			S.sel = v;
+			render();
+		},
+		commit: commit,
+		flip: !S.local && st.seats.indexOf(ME) === 1 && (st.game === "wall" || st.game === "dojo")
+	};
+	G.render(svg, st, ui);
+	const extraEl = G.extra ? G.extra(st, ui) : null;
 
 	put(
 		h("div", { class: "topbar" },
@@ -1654,7 +3013,8 @@ function viewGame() {
 		),
 		h("div", { class: "players" }, chips),
 		h("div", { class: "msg", id: "msg" }, msg),
-		h("div", { class: "board-wrap" }, svg),
+		h("div", { class: "board-wrap" + (st.game === "hive" ? " hive" : "") }, svg),
+		extraEl,
 		G.twoTap && !over
 			? h("button", { class: "pink", id: "btnPlace", disabled: S.pending === null || !canAct(), onclick: () => { if (S.pending !== null) { commit(S.pending); } } }, S.pending === null ? (st.game === "dots" ? "선을 눌러 고르고, 한 번 더 누르면 그어요" : "칸을 눌러 고르고, 한 번 더 누르면 놓여요") : (st.game === "dots" ? "이 선 긋기!" : "여기에 놓기!"))
 			: null,
