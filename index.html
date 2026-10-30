@@ -369,7 +369,9 @@ canvas#fx { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events
 /* =========================================================
 	기본 설정
 ========================================================= */
-const BROKERS = [
+/* 테스트용: 주소에 ?broker=ws://... 를 붙이면 그 중계 서버만 씁니다 */
+const BROKER_OVERRIDE = new URLSearchParams(location.search).get("broker");
+const BROKERS = BROKER_OVERRIDE ? [BROKER_OVERRIDE] : [
 	"wss://broker.emqx.io:8084/mqtt",
 	"wss://broker.hivemq.com:8884/mqtt",
 	"wss://test.mosquitto.org:8081"
@@ -545,6 +547,9 @@ GAMES.omok = {
 	init() {
 		return { b: Array(225).fill(-1), last: -1 };
 	},
+	moves(s) {
+		return s.b.map((v, i) => (v === -1 ? i : -1)).filter(i => i >= 0);
+	},
 	apply(s, m, p) {
 		if (typeof m !== "number" || s.b[m] !== -1) {
 			return null;
@@ -619,6 +624,9 @@ GAMES.four = {
 	rule: "칸을 누르면 말이 아래로 떨어져요. 네 개를 먼저 이으면 승리.",
 	init() {
 		return { b: Array(42).fill(-1), last: -1 };
+	},
+	moves(s) {
+		return [0, 1, 2, 3, 4, 5, 6].filter(c => s.b[c] === -1);
 	},
 	apply(s, m, p) {
 		if (typeof m !== "number" || m < 0 || m > 6) {
@@ -727,6 +735,9 @@ GAMES.reversi = {
 		b[35] = 0;
 		return { b: b, last: -1, flipped: [], pass: null };
 	},
+	moves(s, p) {
+		return rvMoves(s.b, p);
+	},
 	apply(s, m, p) {
 		if (typeof m !== "number") {
 			return null;
@@ -814,6 +825,20 @@ GAMES.dots = {
 			box: Array(DB_N * DB_N).fill(-1),
 			last: null
 		};
+	},
+	moves(s) {
+		const out = [];
+		s.h.forEach((v, i) => {
+			if (v === -1) {
+				out.push("h:" + i);
+			}
+		});
+		s.v.forEach((v, i) => {
+			if (v === -1) {
+				out.push("v:" + i);
+			}
+		});
+		return out;
 	},
 	apply(s, m, p) {
 		if (typeof m !== "string") {

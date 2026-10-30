@@ -1,0 +1,15 @@
+{
+	"name": "kongchap-games",
+	"private": true,
+	"scripts": {
+		"test": "node tests/run.js",
+		"test:rules": "node tests/run.js rules",
+		"test:ui": "node tests/run.js ui",
+		"test:online": "node tests/run.js online"
+	},
+	"devDependencies": {
+		"aedes": "0.51.3",
+		"mqtt": "5.10.1",
+		"websocket-stream": "5.5.2"
+	}
+}
