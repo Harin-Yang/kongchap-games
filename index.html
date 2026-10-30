@@ -1,0 +1,1913 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#fdf4ff">
+<title>콩떡찹쌀 게임방</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='24' cy='34' r='20' fill='%237a5544'/%3E%3Ccircle cx='42' cy='30' r='18' fill='%23fffaf4' stroke='%23e8d6cc' stroke-width='2'/%3E%3Ccircle cx='37' cy='29' r='2.5' fill='%233b2f4a'/%3E%3Ccircle cx='47' cy='29' r='2.5' fill='%233b2f4a'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&family=Gowun+Dodum&display=swap">
+<style>
+/* 레이아웃: 한 손 폰 화면 기준 단일 칼럼. 방 → 게임 고르기 → 판, 전적은 별도 화면 */
+:root {
+	--bg: #fdf4ff;
+	--paper: #ffffff;
+	--ink: #3b2f4a;
+	--soft: #7d6f8c;
+	--line: #eadcf3;
+	--pink: #ff7aa8;
+	--pink-soft: #ffe3ee;
+	--mint: #5ccfb5;
+	--mint-soft: #dcf7ef;
+	--butter: #ffd66b;
+	--lilac: #b9a6ff;
+	--cocoa: #7a5544;
+	--mochi: #fffaf4;
+	--danger: #e0555f;
+	--font-display: "Jua", "BM JUA", "Apple SD Gothic Neo", sans-serif;
+	--font-body: "Gowun Dodum", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+	color-scheme: light;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; min-height: 100%; }
+body {
+	background:
+		radial-gradient(circle at 12% 8%, #ffe3ee 0 70px, transparent 71px),
+		radial-gradient(circle at 92% 22%, #dcf7ef 0 50px, transparent 51px),
+		var(--bg);
+	color: var(--ink);
+	font-family: var(--font-body);
+	font-size: 15px;
+	padding-top: env(safe-area-inset-top, 0px);
+	padding-bottom: env(safe-area-inset-bottom, 0px);
+	padding-left: max(16px, env(safe-area-inset-left, 0px));
+	padding-right: max(16px, env(safe-area-inset-right, 0px));
+	-webkit-tap-highlight-color: transparent;
+	overflow-x: hidden;
+}
+.app {
+	max-width: 480px;
+	margin: 0 auto;
+	padding-block: 14px 32px;
+	display: flex;
+	flex-direction: column;
+	gap: 14px;
+}
+h1, h2, h3, .display { font-family: var(--font-display); font-weight: 400; margin: 0; }
+h1 { font-size: 28px; letter-spacing: -0.01em; }
+h2 { font-size: 21px; }
+h3 { font-size: 17px; }
+p { margin: 0; line-height: 1.55; }
+.muted { color: var(--soft); font-size: 13.5px; }
+.topbar {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 10px;
+}
+.brand { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.brand svg { flex: none; }
+.card {
+	background: var(--paper);
+	border: 2px solid var(--line);
+	border-radius: 20px;
+	padding: 16px;
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+}
+button {
+	font-family: var(--font-display);
+	font-size: 16px;
+	border: 2px solid var(--ink);
+	border-radius: 14px;
+	background: var(--paper);
+	color: var(--ink);
+	padding: 11px 14px;
+	cursor: pointer;
+	box-shadow: 0 3px 0 var(--ink);
+	transition: transform .08s, box-shadow .08s;
+	min-width: 0;
+}
+button:active:not(:disabled) { transform: translateY(3px); box-shadow: 0 0 0 var(--ink); }
+button.pink { background: var(--pink); color: #fff; }
+button.mint { background: var(--mint); color: #fff; }
+button.butter { background: var(--butter); }
+button.ghost { border-color: transparent; box-shadow: none; background: transparent; color: var(--soft); padding: 8px 10px; font-size: 14px; }
+button.small { font-size: 14px; padding: 8px 11px; border-radius: 11px; }
+button:disabled { opacity: .4; cursor: default; }
+button:focus-visible, input:focus-visible { outline: 3px solid var(--lilac); outline-offset: 2px; }
+.row { display: flex; gap: 8px; }
+.row > * { flex: 1; }
+.stack { display: flex; flex-direction: column; gap: 10px; }
+input[type="text"] {
+	font-family: var(--font-display);
+	font-size: 18px;
+	width: 100%;
+	padding: 12px 14px;
+	border-radius: 14px;
+	border: 2px solid var(--line);
+	background: var(--bg);
+	color: var(--ink);
+}
+.hero {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	text-align: center;
+	gap: 6px;
+	padding-block: 10px 4px;
+}
+.hero h1 { font-size: 32px; }
+
+/* 플레이어 칩 */
+.players { display: flex; gap: 8px; }
+.chip {
+	flex: 1;
+	min-width: 0;
+	position: relative;
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 8px 10px;
+	border-radius: 16px;
+	background: var(--paper);
+	border: 2px solid var(--line);
+	transition: border-color .2s, transform .2s;
+}
+.chip.turn { border-color: var(--ink); transform: translateY(-2px); box-shadow: 0 3px 0 var(--ink); }
+.chip .nm { font-family: var(--font-display); font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.chip .sub { font-size: 12px; color: var(--soft); }
+.chip .meta { min-width: 0; }
+.chip svg { flex: none; }
+.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #cfc6d8; margin-right: 4px; vertical-align: 1px; }
+.dot.on { background: var(--mint); box-shadow: 0 0 0 3px var(--mint-soft); }
+.bubble {
+	position: absolute;
+	left: 50%;
+	top: -12px;
+	transform: translate(-50%, -100%);
+	background: var(--ink);
+	color: #fff;
+	font-family: var(--font-display);
+	font-size: 15px;
+	padding: 7px 11px;
+	border-radius: 14px;
+	white-space: nowrap;
+	z-index: 5;
+	animation: pop .25s cubic-bezier(.3, 1.6, .5, 1);
+	pointer-events: none;
+}
+.bubble::after {
+	content: "";
+	position: absolute;
+	left: 50%;
+	bottom: -6px;
+	margin-left: -6px;
+	border: 6px solid transparent;
+	border-bottom: 0;
+	border-top-color: var(--ink);
+}
+@keyframes pop { from { transform: translate(-50%, -100%) scale(.4); opacity: 0; } to { transform: translate(-50%, -100%) scale(1); opacity: 1; } }
+
+/* 게임 고르기 카드 */
+.games { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.gcard {
+	text-align: left;
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	padding: 12px;
+	border-radius: 18px;
+	font-family: var(--font-body);
+	font-size: 13px;
+}
+.gcard .gt { font-family: var(--font-display); font-size: 19px; }
+.gcard .gm { color: var(--soft); font-size: 12px; }
+.gcard .rec { font-family: var(--font-display); font-size: 14px; }
+.gcard svg { width: 100%; height: auto; max-height: 64px; }
+.banner {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	padding: 12px 14px;
+	border-radius: 16px;
+	background: var(--butter);
+	border: 2px solid var(--ink);
+}
+.banner .t { flex: 1; min-width: 0; font-family: var(--font-display); }
+
+/* 게임 화면 */
+.msg {
+	text-align: center;
+	font-family: var(--font-display);
+	font-size: 20px;
+	min-height: 28px;
+}
+.board-wrap {
+	position: relative;
+	width: 100%;
+	max-width: 100%;
+	touch-action: manipulation;
+	user-select: none;
+	-webkit-user-select: none;
+}
+#board { width: 100%; height: auto; display: block; }
+.emotes {
+	display: flex;
+	gap: 6px;
+	overflow-x: auto;
+	padding-bottom: 4px;
+	scrollbar-width: none;
+}
+.emotes::-webkit-scrollbar { display: none; }
+.emotes button {
+	flex: none;
+	font-size: 14px;
+	padding: 7px 11px;
+	border-radius: 999px;
+	box-shadow: 0 2px 0 var(--ink);
+	border-width: 1.5px;
+}
+
+/* 결과 팝업 */
+.overlay {
+	position: fixed;
+	inset: 0;
+	background: rgba(59, 47, 74, .35);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 20px max(16px, env(safe-area-inset-left, 0px));
+	z-index: 20;
+}
+.sheet {
+	background: var(--paper);
+	border: 2.5px solid var(--ink);
+	border-radius: 24px;
+	padding: 22px 18px 18px;
+	width: 100%;
+	max-width: 360px;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 12px;
+	text-align: center;
+	box-shadow: 0 6px 0 var(--ink);
+	animation: sheetIn .3s cubic-bezier(.3, 1.5, .5, 1);
+}
+@keyframes sheetIn { from { transform: scale(.7); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+.sheet .stack { width: 100%; }
+.big { font-family: var(--font-display); font-size: 30px; }
+
+/* 전적 */
+.tabs { display: flex; gap: 6px; flex-wrap: wrap; }
+.tabs button { font-size: 14px; padding: 7px 12px; border-radius: 999px; box-shadow: none; border-width: 1.5px; border-color: var(--line); }
+.tabs button.on { background: var(--ink); color: #fff; border-color: var(--ink); }
+.vs {
+	display: grid;
+	grid-template-columns: 1fr auto 1fr;
+	align-items: center;
+	gap: 8px;
+	text-align: center;
+}
+.vs .score { font-family: var(--font-display); font-size: 40px; line-height: 1; font-variant-numeric: tabular-nums; }
+.vs .who { font-family: var(--font-display); font-size: 16px; }
+.vs .colon { font-family: var(--font-display); font-size: 28px; color: var(--soft); }
+.rate-bar {
+	display: flex;
+	height: 22px;
+	border-radius: 999px;
+	overflow: hidden;
+	border: 2px solid var(--ink);
+	font-family: var(--font-display);
+	font-size: 12px;
+	color: #fff;
+}
+.rate-bar span { display: flex; align-items: center; justify-content: center; min-width: 0; transition: flex-basis .4s; }
+table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+th, td { padding: 8px 4px; text-align: center; border-bottom: 1.5px dashed var(--line); font-size: 14px; }
+th { font-family: var(--font-display); font-weight: 400; color: var(--soft); font-size: 13px; }
+td:first-child, th:first-child { text-align: left; }
+.log { display: flex; flex-direction: column; gap: 6px; }
+.log div { display: flex; justify-content: space-between; gap: 8px; font-size: 13.5px; padding: 6px 0; border-bottom: 1.5px dashed var(--line); }
+.toast {
+	position: fixed;
+	left: 50%;
+	bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+	transform: translateX(-50%);
+	background: var(--ink);
+	color: #fff;
+	font-family: var(--font-display);
+	padding: 10px 16px;
+	border-radius: 999px;
+	z-index: 30;
+	max-width: calc(100% - 32px);
+	text-align: center;
+}
+.net { font-size: 12px; color: var(--soft); display: flex; align-items: center; gap: 2px; white-space: nowrap; }
+canvas#fx { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 25; }
+@keyframes blink { 0%, 92%, 100% { transform: scaleY(1); } 95% { transform: scaleY(.1); } }
+.eye { transform-box: fill-box; transform-origin: center; animation: blink 4.2s infinite; }
+@keyframes bounceIn { 0% { transform: scale(.2) translateY(-30%); } 60% { transform: scale(1.15); } 100% { transform: scale(1); } }
+.fresh { transform-box: fill-box; transform-origin: center; animation: bounceIn .35s ease-out; }
+@keyframes shake { 0%, 100% { transform: translateX(0); } 20% { transform: translateX(-9px) rotate(-1deg); } 40% { transform: translateX(8px) rotate(1deg); } 60% { transform: translateX(-6px); } 80% { transform: translateX(4px); } }
+.shake { animation: shake .5s; }
+@keyframes wiggle { 0%, 100% { transform: rotate(0); } 25% { transform: rotate(-6deg); } 75% { transform: rotate(6deg); } }
+.wiggle { animation: wiggle 1.6s ease-in-out infinite; transform-origin: center; }
+@media (prefers-reduced-motion: reduce) {
+	*, *::before, *::after { animation: none !important; transition: none !important; }
+}
+</style>
+</head>
+<body>
+<div class="app" id="app"></div>
+<canvas id="fx" hidden></canvas>
+
+<script src="https://unpkg.com/mqtt@5.10.1/dist/mqtt.min.js"></script>
+<script>
+"use strict";
+
+/* =========================================================
+	기본 설정
+========================================================= */
+const BROKERS = [
+	"wss://broker.emqx.io:8084/mqtt",
+	"wss://broker.hivemq.com:8884/mqtt",
+	"wss://test.mosquitto.org:8081"
+];
+const TOPIC_ROOT = "kongchap-boardgame/v1/";
+const SEAT_COLOR = ["#7a5544", "#ff7aa8"];
+const SEAT_NAME = ["콩떡", "찹쌀"];
+const EMOTES = [
+	"빨리 둬~ ⏰",
+	"헉!! 😱",
+	"봐주라 🥺",
+	"ㅋㅋㅋㅋ",
+	"잘했어 👏",
+	"두고 보자 😤",
+	"사랑해 💗",
+	"콕 찌르기 👉"
+];
+
+const store = {
+	get(k, d) {
+		try {
+			const v = localStorage.getItem(k);
+			return v === null ? d : JSON.parse(v);
+		} catch (e) {
+			return d;
+		}
+	},
+	set(k, v) {
+		try {
+			localStorage.setItem(k, JSON.stringify(v));
+		} catch (e) {
+			/* 저장 불가 환경은 무시 */
+		}
+	}
+};
+
+function rid(n) {
+	const c = "abcdefghjkmnpqrstuvwxyz23456789";
+	let s = "";
+	for (let i = 0; i < n; i++) {
+		s += c[Math.floor(Math.random() * c.length)];
+	}
+	return s;
+}
+
+const ME = store.get("bg_cid", null) || rid(12);
+store.set("bg_cid", ME);
+
+const S = {
+	view: "home",
+	name: store.get("bg_name", ""),
+	room: null,
+	client: null,
+	connected: false,
+	brokerIdx: 0,
+	presence: {},
+	partner: null,
+	names: {},
+	game: null,
+	local: false,
+	pending: null,
+	stats: null,
+	statsTab: "all",
+	lastGid: null,
+	syncing: true,
+	bubbles: {},
+	freshKey: null,
+	resultShownFor: null
+};
+
+/* =========================================================
+	캐릭터 말 그리기 (SVG)
+========================================================= */
+const NS = "http://www.w3.org/2000/svg";
+
+function el(tag, attrs, parent) {
+	const e = document.createElementNS(NS, tag);
+	for (const k in attrs) {
+		e.setAttribute(k, attrs[k]);
+	}
+	if (parent) {
+		parent.appendChild(e);
+	}
+	return e;
+}
+
+function piece(parent, x, y, r, seat, opt) {
+	const o = opt || {};
+	const g = el("g", {}, parent);
+	if (o.fresh) {
+		g.setAttribute("class", "fresh");
+	}
+	if (o.ghost) {
+		g.setAttribute("opacity", ".5");
+	}
+	el("ellipse", { cx: x, cy: y + r * 0.12, rx: r * 0.95, ry: r * 0.9, fill: "rgba(59,47,74,.18)" }, g);
+	if (seat === 0) {
+		el("circle", { cx: x, cy: y, r: r, fill: "#7a5544", stroke: "#5c3f32", "stroke-width": Math.max(0.6, r * 0.06) }, g);
+		el("ellipse", { cx: x - r * 0.35, cy: y - r * 0.45, rx: r * 0.28, ry: r * 0.16, fill: "#9a7262", transform: "rotate(-25 " + (x - r * 0.35) + " " + (y - r * 0.45) + ")" }, g);
+	} else {
+		el("circle", { cx: x, cy: y, r: r, fill: "#fffaf4", stroke: "#e2cfc4", "stroke-width": Math.max(0.6, r * 0.07) }, g);
+		el("ellipse", { cx: x - r * 0.35, cy: y - r * 0.45, rx: r * 0.28, ry: r * 0.16, fill: "#ffffff", transform: "rotate(-25 " + (x - r * 0.35) + " " + (y - r * 0.45) + ")" }, g);
+	}
+	if (r < 5) {
+		return g;
+	}
+	const eyeC = seat === 0 ? "#fff3e6" : "#3b2f4a";
+	const ex = r * 0.33;
+	const ey = y - r * 0.02;
+	if (o.sleepy) {
+		el("path", { d: "M" + (x - ex - r * 0.13) + " " + ey + " h" + r * 0.26 + " M" + (x + ex - r * 0.13) + " " + ey + " h" + r * 0.26, stroke: eyeC, "stroke-width": r * 0.1, "stroke-linecap": "round" }, g);
+	} else if (o.happy) {
+		el("path", { d: "M" + (x - ex - r * 0.14) + " " + (ey + r * 0.04) + " q" + r * 0.14 + " " + (-r * 0.2) + " " + r * 0.28 + " 0 M" + (x + ex - r * 0.14) + " " + (ey + r * 0.04) + " q" + r * 0.14 + " " + (-r * 0.2) + " " + r * 0.28 + " 0", stroke: eyeC, fill: "none", "stroke-width": r * 0.1, "stroke-linecap": "round" }, g);
+	} else {
+		const d = (Math.random() * 4).toFixed(2) + "s";
+		el("ellipse", { class: "eye", style: "animation-delay:" + d, cx: x - ex, cy: ey, rx: r * 0.1, ry: r * 0.15, fill: eyeC }, g);
+		el("ellipse", { class: "eye", style: "animation-delay:" + d, cx: x + ex, cy: ey, rx: r * 0.1, ry: r * 0.15, fill: eyeC }, g);
+	}
+	el("circle", { cx: x - r * 0.55, cy: y + r * 0.28, r: r * 0.15, fill: "#ff9fbd", opacity: ".75" }, g);
+	el("circle", { cx: x + r * 0.55, cy: y + r * 0.28, r: r * 0.15, fill: "#ff9fbd", opacity: ".75" }, g);
+	if (r >= 9) {
+		el("path", { d: "M" + (x - r * 0.12) + " " + (y + r * 0.22) + " q" + r * 0.06 + " " + r * 0.1 + " " + r * 0.12 + " 0 q" + r * 0.06 + " " + r * 0.1 + " " + r * 0.12 + " 0", stroke: eyeC, fill: "none", "stroke-width": r * 0.07, "stroke-linecap": "round" }, g);
+	}
+	return g;
+}
+
+function avatar(seat, size, opt) {
+	const s = el("svg", { viewBox: "0 0 40 40", width: size, height: size });
+	piece(s, 20, 19, 16, seat, opt);
+	return s;
+}
+
+/* =========================================================
+	게임 규칙
+	apply(s, move, p) → { s, turn, over, note } 또는 null(불가능한 수)
+========================================================= */
+function lineWin(b, W, H, idx, p, need) {
+	const r0 = Math.floor(idx / W);
+	const c0 = idx % W;
+	const dirs = [[0, 1], [1, 0], [1, 1], [1, -1]];
+	for (const [dr, dc] of dirs) {
+		const line = [idx];
+		for (const sgn of [1, -1]) {
+			let r = r0 + dr * sgn;
+			let c = c0 + dc * sgn;
+			while (r >= 0 && r < H && c >= 0 && c < W && b[r * W + c] === p) {
+				if (sgn === 1) {
+					line.push(r * W + c);
+				} else {
+					line.unshift(r * W + c);
+				}
+				r += dr * sgn;
+				c += dc * sgn;
+			}
+		}
+		if (line.length >= need) {
+			return line;
+		}
+	}
+	return null;
+}
+
+const GAMES = {};
+
+/* ---------- 오목 ---------- */
+GAMES.omok = {
+	name: "오목",
+	time: "10~15분",
+	twoTap: true,
+	rule: "가로·세로·대각선으로 다섯 개를 먼저 이으면 승리.",
+	N: 15,
+	init() {
+		return { b: Array(225).fill(-1), last: -1 };
+	},
+	apply(s, m, p) {
+		if (typeof m !== "number" || s.b[m] !== -1) {
+			return null;
+		}
+		const b = s.b.slice();
+		b[m] = p;
+		const ns = { b: b, last: m };
+		const line = lineWin(b, 15, 15, m, p, 5);
+		if (line) {
+			return { s: ns, turn: p, over: { winner: p, line: line } };
+		}
+		if (!b.includes(-1)) {
+			return { s: ns, turn: p, over: { winner: -1 } };
+		}
+		return { s: ns, turn: 1 - p, over: null };
+	},
+	render(svg, st, ui) {
+		const N = 15;
+		const P = 16;
+		const G = (320 - P * 2) / (N - 1);
+		svg.setAttribute("viewBox", "0 0 320 320");
+		el("rect", { x: 2, y: 2, width: 316, height: 316, rx: 22, fill: "#ffe3a3", stroke: "#3b2f4a", "stroke-width": 2.5 }, svg);
+		const g = el("g", { stroke: "#c08a4c", "stroke-width": 1, "stroke-linecap": "round" }, svg);
+		for (let i = 0; i < N; i++) {
+			el("line", { x1: P, y1: P + i * G, x2: 320 - P, y2: P + i * G }, g);
+			el("line", { x1: P + i * G, y1: P, x2: P + i * G, y2: 320 - P }, g);
+		}
+		for (const r of [3, 7, 11]) {
+			for (const c of [3, 7, 11]) {
+				el("circle", { cx: P + c * G, cy: P + r * G, r: 2.4, fill: "#c08a4c" }, svg);
+			}
+		}
+		const over = st.over;
+		st.s.b.forEach((v, i) => {
+			if (v === -1) {
+				return;
+			}
+			const opt = {
+				fresh: i === st.s.last && ui.freshOk,
+				happy: over && over.winner === v,
+				sleepy: over && over.winner !== -1 && over.winner !== v
+			};
+			piece(svg, P + (i % N) * G, P + Math.floor(i / N) * G, G * 0.47, v, opt);
+		});
+		if (st.s.last >= 0 && !over) {
+			el("circle", { cx: P + (st.s.last % N) * G, cy: P + Math.floor(st.s.last / N) * G - G * 0.62, r: 2.6, fill: "#ff7aa8" }, svg);
+		}
+		if (over && over.line) {
+			drawWinLine(svg, over.line, i => [P + (i % N) * G, P + Math.floor(i / N) * G]);
+		}
+		if (ui.pending !== null) {
+			piece(svg, P + (ui.pending % N) * G, P + Math.floor(ui.pending / N) * G, G * 0.47, st.turn, { ghost: true });
+			el("circle", { cx: P + (ui.pending % N) * G, cy: P + Math.floor(ui.pending / N) * G, r: G * 0.6, fill: "none", stroke: "#ff7aa8", "stroke-width": 2, "stroke-dasharray": "3 3" }, svg);
+		}
+		const hit = el("rect", { x: 0, y: 0, width: 320, height: 320, fill: "transparent" }, svg);
+		hit.addEventListener("click", ev => {
+			const p = svgPoint(svg, ev);
+			const c = Math.round((p.x - P) / G);
+			const r = Math.round((p.y - P) / G);
+			if (r >= 0 && r < N && c >= 0 && c < N) {
+				ui.tap(r * N + c);
+			}
+		});
+	}
+};
+
+/* ---------- 사목 ---------- */
+GAMES.four = {
+	name: "사목",
+	time: "5~10분",
+	twoTap: false,
+	rule: "칸을 누르면 말이 아래로 떨어져요. 네 개를 먼저 이으면 승리.",
+	init() {
+		return { b: Array(42).fill(-1), last: -1 };
+	},
+	apply(s, m, p) {
+		if (typeof m !== "number" || m < 0 || m > 6) {
+			return null;
+		}
+		let r = 5;
+		while (r >= 0 && s.b[r * 7 + m] !== -1) {
+			r--;
+		}
+		if (r < 0) {
+			return null;
+		}
+		const idx = r * 7 + m;
+		const b = s.b.slice();
+		b[idx] = p;
+		const ns = { b: b, last: idx };
+		const line = lineWin(b, 7, 6, idx, p, 4);
+		if (line) {
+			return { s: ns, turn: p, over: { winner: p, line: line } };
+		}
+		if (!b.includes(-1)) {
+			return { s: ns, turn: p, over: { winner: -1 } };
+		}
+		return { s: ns, turn: 1 - p, over: null };
+	},
+	render(svg, st, ui) {
+		const C = 46;
+		const X0 = 14;
+		const Y0 = 14;
+		svg.setAttribute("viewBox", "0 0 350 316");
+		el("rect", { x: 3, y: 3, width: 344, height: 296, rx: 26, fill: "#b9a6ff", stroke: "#3b2f4a", "stroke-width": 2.5 }, svg);
+		el("rect", { x: 22, y: 296, width: 22, height: 16, rx: 6, fill: "#9a85ee", stroke: "#3b2f4a", "stroke-width": 2 }, svg);
+		el("rect", { x: 306, y: 296, width: 22, height: 16, rx: 6, fill: "#9a85ee", stroke: "#3b2f4a", "stroke-width": 2 }, svg);
+		const over = st.over;
+		for (let r = 0; r < 6; r++) {
+			for (let c = 0; c < 7; c++) {
+				const x = X0 + C * c + C / 2;
+				const y = Y0 + C * r + C / 2 - 2;
+				const v = st.s.b[r * 7 + c];
+				el("circle", { cx: x, cy: y, r: 18.5, fill: "#fdf4ff", stroke: "#8f7ae0", "stroke-width": 2 }, svg);
+				if (v !== -1) {
+					piece(svg, x, y, 17, v, {
+						fresh: r * 7 + c === st.s.last && ui.freshOk,
+						happy: over && over.winner === v,
+						sleepy: over && over.winner !== -1 && over.winner !== v
+					});
+				}
+			}
+		}
+		if (over && over.line) {
+			drawWinLine(svg, over.line, i => [X0 + C * (i % 7) + C / 2, Y0 + C * Math.floor(i / 7) + C / 2 - 2]);
+		}
+		for (let c = 0; c < 7; c++) {
+			const hit = el("rect", { x: X0 + C * c, y: 0, width: C, height: 316, fill: "transparent" }, svg);
+			hit.addEventListener("click", () => ui.tap(c));
+		}
+	}
+};
+
+/* ---------- 리버시 ---------- */
+const DIR8 = [[-1, -1], [-1, 0], [-1, 1], [0, -1], [0, 1], [1, -1], [1, 0], [1, 1]];
+
+function rvFlips(b, idx, p) {
+	if (b[idx] !== -1) {
+		return [];
+	}
+	const r0 = Math.floor(idx / 8);
+	const c0 = idx % 8;
+	const out = [];
+	for (const [dr, dc] of DIR8) {
+		const run = [];
+		let r = r0 + dr;
+		let c = c0 + dc;
+		while (r >= 0 && r < 8 && c >= 0 && c < 8 && b[r * 8 + c] === 1 - p) {
+			run.push(r * 8 + c);
+			r += dr;
+			c += dc;
+		}
+		if (run.length && r >= 0 && r < 8 && c >= 0 && c < 8 && b[r * 8 + c] === p) {
+			out.push(...run);
+		}
+	}
+	return out;
+}
+
+function rvMoves(b, p) {
+	const m = [];
+	for (let i = 0; i < 64; i++) {
+		if (b[i] === -1 && rvFlips(b, i, p).length) {
+			m.push(i);
+		}
+	}
+	return m;
+}
+
+GAMES.reversi = {
+	name: "리버시",
+	time: "10~15분",
+	twoTap: false,
+	rule: "상대 말을 내 말 사이에 끼우면 뒤집혀요. 끝났을 때 말이 많은 쪽이 승리.",
+	init() {
+		const b = Array(64).fill(-1);
+		b[27] = 1;
+		b[36] = 1;
+		b[28] = 0;
+		b[35] = 0;
+		return { b: b, last: -1, flipped: [], pass: null };
+	},
+	apply(s, m, p) {
+		if (typeof m !== "number") {
+			return null;
+		}
+		const fl = rvFlips(s.b, m, p);
+		if (!fl.length) {
+			return null;
+		}
+		const b = s.b.slice();
+		b[m] = p;
+		fl.forEach(i => {
+			b[i] = p;
+		});
+		const ns = { b: b, last: m, flipped: fl, pass: null };
+		const q = 1 - p;
+		if (rvMoves(b, q).length) {
+			return { s: ns, turn: q, over: null };
+		}
+		if (rvMoves(b, p).length) {
+			ns.pass = q;
+			return { s: ns, turn: p, over: null, note: SEAT_NAME[q] + " 둘 곳이 없어서 패스!" };
+		}
+		const a = b.filter(v => v === 0).length;
+		const z = b.filter(v => v === 1).length;
+		return { s: ns, turn: p, over: { winner: a === z ? -1 : (a > z ? 0 : 1), score: [a, z] } };
+	},
+	render(svg, st, ui) {
+		const P = 8;
+		const C = 38;
+		svg.setAttribute("viewBox", "0 0 320 320");
+		el("rect", { x: 2, y: 2, width: 316, height: 316, rx: 22, fill: "#9fe3c9", stroke: "#3b2f4a", "stroke-width": 2.5 }, svg);
+		for (let r = 0; r < 8; r++) {
+			for (let c = 0; c < 8; c++) {
+				if ((r + c) % 2 === 0) {
+					el("rect", { x: P + c * C, y: P + r * C, width: C, height: C, fill: "#b4ecd6" }, svg);
+				}
+			}
+		}
+		const g = el("g", { stroke: "#6cc4a3", "stroke-width": 1 }, svg);
+		for (let i = 0; i <= 8; i++) {
+			el("line", { x1: P, y1: P + i * C, x2: P + 8 * C, y2: P + i * C }, g);
+			el("line", { x1: P + i * C, y1: P, x2: P + i * C, y2: P + 8 * C }, g);
+		}
+		const over = st.over;
+		const flipped = new Set(st.s.flipped || []);
+		st.s.b.forEach((v, i) => {
+			if (v === -1) {
+				return;
+			}
+			piece(svg, P + (i % 8) * C + C / 2, P + Math.floor(i / 8) * C + C / 2, 15, v, {
+				fresh: ui.freshOk && (i === st.s.last || flipped.has(i)),
+				happy: over && over.winner === v,
+				sleepy: over && over.winner !== -1 && over.winner !== v
+			});
+		});
+		if (!over && ui.canAct) {
+			rvMoves(st.s.b, st.turn).forEach(i => {
+				el("circle", { cx: P + (i % 8) * C + C / 2, cy: P + Math.floor(i / 8) * C + C / 2, r: 5, fill: SEAT_COLOR[st.turn], opacity: ".45" }, svg);
+			});
+		}
+		const hit = el("rect", { x: 0, y: 0, width: 320, height: 320, fill: "transparent" }, svg);
+		hit.addEventListener("click", ev => {
+			const p = svgPoint(svg, ev);
+			const c = Math.floor((p.x - P) / C);
+			const r = Math.floor((p.y - P) / C);
+			if (r >= 0 && r < 8 && c >= 0 && c < 8) {
+				ui.tap(r * 8 + c);
+			}
+		});
+	}
+};
+
+/* ---------- 땅따먹기 (점과 상자) ---------- */
+const DB_N = 5;
+
+GAMES.dots = {
+	name: "땅따먹기",
+	time: "5~10분",
+	twoTap: true,
+	rule: "점 사이에 선을 하나씩 그어요. 네모를 완성하면 내 땅이 되고 한 번 더! 땅이 많은 쪽이 승리.",
+	init() {
+		return {
+			h: Array((DB_N + 1) * DB_N).fill(-1),
+			v: Array(DB_N * (DB_N + 1)).fill(-1),
+			box: Array(DB_N * DB_N).fill(-1),
+			last: null
+		};
+	},
+	apply(s, m, p) {
+		if (typeof m !== "string") {
+			return null;
+		}
+		const [k, is] = m.split(":");
+		const i = Number(is);
+		if ((k !== "h" && k !== "v") || !(i >= 0) || s[k][i] === undefined || s[k][i] !== -1) {
+			return null;
+		}
+		const h = s.h.slice();
+		const v = s.v.slice();
+		const box = s.box.slice();
+		(k === "h" ? h : v)[i] = p;
+		let made = 0;
+		for (let r = 0; r < DB_N; r++) {
+			for (let c = 0; c < DB_N; c++) {
+				const bi = r * DB_N + c;
+				if (box[bi] !== -1) {
+					continue;
+				}
+				const full = h[r * DB_N + c] !== -1 &&
+					h[(r + 1) * DB_N + c] !== -1 &&
+					v[r * (DB_N + 1) + c] !== -1 &&
+					v[r * (DB_N + 1) + c + 1] !== -1;
+				if (full) {
+					box[bi] = p;
+					made++;
+				}
+			}
+		}
+		const ns = { h: h, v: v, box: box, last: m };
+		if (!box.includes(-1)) {
+			const a = box.filter(x => x === 0).length;
+			const z = box.filter(x => x === 1).length;
+			return { s: ns, turn: p, over: { winner: a === z ? -1 : (a > z ? 0 : 1), score: [a, z] } };
+		}
+		if (made) {
+			return { s: ns, turn: p, over: null, note: "네모 완성! 한 번 더 🎉" };
+		}
+		return { s: ns, turn: 1 - p, over: null };
+	},
+	render(svg, st, ui) {
+		const P = 24;
+		const G = (320 - P * 2) / DB_N;
+		svg.setAttribute("viewBox", "0 0 320 320");
+		el("rect", { x: 2, y: 2, width: 316, height: 316, rx: 22, fill: "#ffffff", stroke: "#3b2f4a", "stroke-width": 2.5 }, svg);
+		const over = st.over;
+		st.s.box.forEach((o, bi) => {
+			if (o === -1) {
+				return;
+			}
+			const r = Math.floor(bi / DB_N);
+			const c = bi % DB_N;
+			el("rect", { x: P + c * G + 3, y: P + r * G + 3, width: G - 6, height: G - 6, rx: 8, fill: o === 0 ? "#efe2da" : "#ffe3ee" }, svg);
+			piece(svg, P + c * G + G / 2, P + r * G + G / 2, G * 0.3, o, {
+				happy: over && over.winner === o,
+				sleepy: over && over.winner !== -1 && over.winner !== o
+			});
+		});
+		const lines = [];
+		for (let r = 0; r <= DB_N; r++) {
+			for (let c = 0; c < DB_N; c++) {
+				lines.push({ id: "h:" + (r * DB_N + c), o: st.s.h[r * DB_N + c], x1: P + c * G, y1: P + r * G, x2: P + (c + 1) * G, y2: P + r * G });
+			}
+		}
+		for (let r = 0; r < DB_N; r++) {
+			for (let c = 0; c <= DB_N; c++) {
+				lines.push({ id: "v:" + (r * (DB_N + 1) + c), o: st.s.v[r * (DB_N + 1) + c], x1: P + c * G, y1: P + r * G, x2: P + c * G, y2: P + (r + 1) * G });
+			}
+		}
+		lines.forEach(L => {
+			if (L.o === -1) {
+				el("line", { x1: L.x1, y1: L.y1, x2: L.x2, y2: L.y2, stroke: "#ece3f3", "stroke-width": 3, "stroke-dasharray": "2 5", "stroke-linecap": "round" }, svg);
+			} else {
+				const ln = el("line", { x1: L.x1, y1: L.y1, x2: L.x2, y2: L.y2, stroke: SEAT_COLOR[L.o], "stroke-width": 6, "stroke-linecap": "round" }, svg);
+				if (L.id === st.s.last && ui.freshOk) {
+					ln.setAttribute("class", "fresh");
+				}
+			}
+			if (L.id === ui.pending) {
+				el("line", { x1: L.x1, y1: L.y1, x2: L.x2, y2: L.y2, stroke: SEAT_COLOR[st.turn], "stroke-width": 6, "stroke-linecap": "round", opacity: ".45" }, svg);
+			}
+		});
+		for (let r = 0; r <= DB_N; r++) {
+			for (let c = 0; c <= DB_N; c++) {
+				el("circle", { cx: P + c * G, cy: P + r * G, r: 5, fill: "#3b2f4a" }, svg);
+			}
+		}
+		lines.forEach(L => {
+			if (L.o !== -1) {
+				return;
+			}
+			const hit = el("line", { x1: L.x1, y1: L.y1, x2: L.x2, y2: L.y2, stroke: "transparent", "stroke-width": 26 }, svg);
+			hit.addEventListener("click", () => ui.tap(L.id));
+		});
+	}
+};
+
+const GAME_ORDER = ["omok", "four", "reversi", "dots"];
+
+function drawWinLine(svg, line, xy) {
+	const a = xy(line[0]);
+	const b = xy(line[line.length - 1]);
+	el("line", { x1: a[0], y1: a[1], x2: b[0], y2: b[1], stroke: "#ff7aa8", "stroke-width": 5, "stroke-linecap": "round", opacity: ".8" }, svg);
+}
+
+function svgPoint(svg, ev) {
+	const pt = svg.createSVGPoint();
+	pt.x = ev.clientX;
+	pt.y = ev.clientY;
+	return pt.matrixTransform(svg.getScreenCTM().inverse());
+}
+
+/* =========================================================
+	실시간 연결 (공개 MQTT 중계 서버)
+========================================================= */
+function base() {
+	return TOPIC_ROOT + S.room + "/";
+}
+
+function connect() {
+	if (typeof mqtt === "undefined") {
+		toast("연결 도구를 불러오지 못했어요. 새로고침해 주세요.");
+		return;
+	}
+	if (S.client) {
+		try {
+			S.client.end(true);
+		} catch (e) {
+			/* 무시 */
+		}
+	}
+	S.connected = false;
+	S.syncing = true;
+	const url = BROKERS[S.brokerIdx % BROKERS.length];
+	const client = mqtt.connect(url, {
+		clientId: "kc_" + ME + "_" + rid(4),
+		keepalive: 30,
+		reconnectPeriod: 2500,
+		connectTimeout: 8000,
+		clean: true,
+		will: { topic: base() + "p/" + ME, payload: "", retain: true, qos: 1 }
+	});
+	S.client = client;
+	let everConnected = false;
+	const failTimer = setTimeout(() => {
+		if (!everConnected && S.client === client) {
+			S.brokerIdx++;
+			connect();
+		}
+	}, 9000);
+	client.on("connect", () => {
+		everConnected = true;
+		clearTimeout(failTimer);
+		S.connected = true;
+		client.subscribe(base() + "#", { qos: 1 });
+		announce();
+		setTimeout(() => {
+			S.syncing = false;
+			renderSoft();
+		}, 1800);
+		renderSoft();
+	});
+	client.on("close", () => {
+		if (S.client === client) {
+			S.connected = false;
+			renderSoft();
+		}
+	});
+	client.on("message", (topic, buf) => {
+		if (S.client !== client) {
+			return;
+		}
+		onMessage(topic.slice(base().length), buf.toString());
+	});
+}
+
+function announce() {
+	if (!S.client || !S.connected) {
+		return;
+	}
+	S.client.publish(base() + "p/" + ME, JSON.stringify({ name: S.name, ts: Date.now() }), { retain: true, qos: 1 });
+}
+
+function pub(sub, obj, retain) {
+	if (!S.client || !S.connected) {
+		return false;
+	}
+	S.client.publish(base() + sub, JSON.stringify(obj), { retain: !!retain, qos: 1 });
+	return true;
+}
+
+function onMessage(sub, raw) {
+	let data = null;
+	if (raw) {
+		try {
+			data = JSON.parse(raw);
+		} catch (e) {
+			return;
+		}
+	}
+	if (sub.startsWith("p/")) {
+		const cid = sub.slice(2);
+		if (data) {
+			S.presence[cid] = data;
+			S.names[cid] = data.name;
+			if (cid !== ME) {
+				S.partner = cid;
+				store.set("bg_partner_" + S.room, cid);
+			}
+		} else {
+			delete S.presence[cid];
+		}
+		renderSoft();
+		return;
+	}
+	if (sub === "state" && data) {
+		receiveState(data);
+		return;
+	}
+	if (sub === "stats" && data) {
+		mergeStats(data);
+		return;
+	}
+	if (sub === "e" && data && data.from !== ME) {
+		showBubble(data.from, data.text);
+		if (data.text.indexOf("콕") === 0) {
+			const a = document.getElementById("app");
+			a.classList.remove("shake");
+			void a.offsetWidth;
+			a.classList.add("shake");
+			if (navigator.vibrate) {
+				navigator.vibrate([60, 40, 60]);
+			}
+		}
+	}
+}
+
+function receiveState(d) {
+	if (!d.gid || !GAMES[d.game]) {
+		return;
+	}
+	const cur = S.local ? null : S.game;
+	if (cur && cur.gid === d.gid && d.seq <= cur.seq) {
+		return;
+	}
+	if (cur && cur.gid !== d.gid && d.ts < cur.ts) {
+		return;
+	}
+	Object.assign(S.names, d.names || {});
+	const isNewGame = d.gid !== S.lastGid;
+	S.lastGid = d.gid;
+	if (S.local && S.view === "game") {
+		S.remoteGame = d;
+		renderSoft();
+		return;
+	}
+	S.remoteGame = d;
+	const seated = d.seats.includes(ME);
+	if (S.view === "game" && !S.local) {
+		S.freshKey = d.gid + ":" + d.seq;
+		S.game = d;
+		S.pending = null;
+		render();
+		return;
+	}
+	if (isNewGame && !S.syncing && seated && !d.over) {
+		openOnline(d);
+		toast(S.names[d.by] ? S.names[d.by] + " 님이 " + GAMES[d.game].name + " 판을 열었어요!" : "새 판이 열렸어요!");
+		return;
+	}
+	renderSoft();
+}
+
+/* =========================================================
+	전적
+========================================================= */
+function emptyStats() {
+	return { v: 1, n: 0, names: {}, games: {}, log: [] };
+}
+
+function loadStats() {
+	S.stats = store.get("bg_stats_" + S.room, null) || emptyStats();
+}
+
+function saveStats() {
+	store.set("bg_stats_" + S.room, S.stats);
+}
+
+function mergeStats(remote) {
+	if (!remote || typeof remote.n !== "number") {
+		return;
+	}
+	if (remote.n > S.stats.n) {
+		S.stats = remote;
+		saveStats();
+	} else if (remote.n < S.stats.n) {
+		pub("stats", S.stats, true);
+	}
+	Object.keys(S.stats.names || {}).forEach(k => {
+		if (!S.names[k]) {
+			S.names[k] = S.stats.names[k];
+		}
+	});
+	renderSoft();
+}
+
+function recordResult(st) {
+	if (st.seats.includes("guest")) {
+		return;
+	}
+	if (S.stats.log.some(x => x.gid === st.gid)) {
+		return;
+	}
+	const g = st.game;
+	const w = st.over.winner;
+	S.stats.games[g] = S.stats.games[g] || {};
+	st.seats.forEach((cid, seat) => {
+		const rec = S.stats.games[g][cid] || { w: 0, l: 0, d: 0 };
+		if (w === -1) {
+			rec.d++;
+		} else if (w === seat) {
+			rec.w++;
+		} else {
+			rec.l++;
+		}
+		S.stats.games[g][cid] = rec;
+		S.stats.names[cid] = S.names[cid] || S.stats.names[cid] || "?";
+	});
+	S.stats.n++;
+	S.stats.log.unshift({ gid: st.gid, g: g, w: w === -1 ? null : st.seats[w], seats: st.seats, sc: st.over.score || null, ts: Date.now(), local: S.local });
+	S.stats.log = S.stats.log.slice(0, 40);
+	saveStats();
+	pub("stats", S.stats, true);
+}
+
+function recFor(game, cid) {
+	const z = { w: 0, l: 0, d: 0 };
+	if (!S.stats) {
+		return z;
+	}
+	const games = game === "all" ? GAME_ORDER : [game];
+	games.forEach(g => {
+		const r = (S.stats.games[g] || {})[cid];
+		if (r) {
+			z.w += r.w;
+			z.l += r.l;
+			z.d += r.d;
+		}
+	});
+	return z;
+}
+
+function rate(r) {
+	const t = r.w + r.l + r.d;
+	return t ? Math.round((r.w / t) * 100) : 0;
+}
+
+/* =========================================================
+	게임 진행
+========================================================= */
+function partnerId() {
+	return S.partner || store.get("bg_partner_" + S.room, null);
+}
+
+function nameOf(cid) {
+	if (cid === ME) {
+		return S.name || "나";
+	}
+	if (cid === "guest") {
+		return "친구";
+	}
+	return S.names[cid] || (S.stats && S.stats.names[cid]) || "상대";
+}
+
+function online(cid) {
+	return !!S.presence[cid];
+}
+
+function newState(game, seats) {
+	const names = {};
+	seats.forEach(c => {
+		names[c] = nameOf(c);
+	});
+	return {
+		v: 1,
+		gid: rid(10),
+		seq: 0,
+		game: game,
+		seats: seats,
+		names: names,
+		s: GAMES[game].init(),
+		turn: 0,
+		over: null,
+		note: null,
+		by: ME,
+		ts: Date.now()
+	};
+}
+
+function startGame(game, local, seatsOverride) {
+	const pid = partnerId();
+	let seats = seatsOverride;
+	if (!seats) {
+		const other = pid || "guest";
+		seats = Math.random() < 0.5 ? [ME, other] : [other, ME];
+	}
+	const st = newState(game, seats);
+	S.local = local;
+	S.pending = null;
+	S.game = st;
+	S.history = [];
+	S.resultShownFor = null;
+	S.freshKey = null;
+	if (!local) {
+		S.lastGid = st.gid;
+		if (!pub("state", st, true)) {
+			toast("아직 연결 중이에요. 잠시 후 다시 눌러 주세요.");
+			return;
+		}
+	}
+	go("game");
+}
+
+function openOnline(d) {
+	S.local = false;
+	S.game = d;
+	S.pending = null;
+	S.resultShownFor = d.over ? d.gid : null;
+	S.freshKey = null;
+	go("game");
+}
+
+function canAct() {
+	const st = S.game;
+	if (!st || st.over) {
+		return false;
+	}
+	if (S.local) {
+		return true;
+	}
+	return st.seats[st.turn] === ME && S.connected;
+}
+
+function tap(move) {
+	if (!canAct()) {
+		if (S.game && !S.game.over && !S.local) {
+			bumpMsg(S.connected ? "아직 " + nameOf(S.game.seats[S.game.turn]) + " 차례예요" : "연결 중이에요…");
+		}
+		return;
+	}
+	const G = GAMES[S.game.game];
+	if (G.twoTap && S.pending !== move) {
+		if (G.apply(S.game.s, move, S.game.turn) === null) {
+			return;
+		}
+		S.pending = move;
+		render();
+		return;
+	}
+	commit(move);
+}
+
+function commit(move) {
+	const st = S.game;
+	const G = GAMES[st.game];
+	const res = G.apply(st.s, move, st.turn);
+	S.pending = null;
+	if (!res) {
+		bumpMsg("거기엔 둘 수 없어요");
+		return;
+	}
+	if (S.local) {
+		S.history.push(st);
+	}
+	const ns = Object.assign({}, st, {
+		s: res.s,
+		turn: res.turn,
+		over: res.over,
+		note: res.note || null,
+		seq: st.seq + 1,
+		by: ME,
+		ts: Date.now()
+	});
+	S.game = ns;
+	S.freshKey = ns.gid + ":" + ns.seq;
+	if (!S.local) {
+		pub("state", ns, true);
+	}
+	if (ns.over) {
+		recordResult(ns);
+	}
+	render();
+}
+
+function undo() {
+	if (!S.local || !S.history || !S.history.length) {
+		return;
+	}
+	S.game = S.history.pop();
+	S.pending = null;
+	S.freshKey = null;
+	render();
+}
+
+function rematch() {
+	const st = S.game;
+	startGame(st.game, S.local, [st.seats[1], st.seats[0]]);
+}
+
+function sendEmote(text) {
+	if (pub("e", { from: ME, text: text, ts: Date.now() }, false)) {
+		showBubble(ME, text);
+	}
+}
+
+function showBubble(cid, text) {
+	S.bubbles[cid] = { text: text, until: Date.now() + 2600 };
+	renderSoft();
+	setTimeout(renderSoft, 2700);
+}
+
+/* =========================================================
+	화면
+========================================================= */
+const app = document.getElementById("app");
+
+function h(tag, props, ...kids) {
+	const e = document.createElement(tag);
+	if (props) {
+		for (const k in props) {
+			const v = props[k];
+			if (k === "class") {
+				e.className = v;
+			} else if (k.startsWith("on")) {
+				e.addEventListener(k.slice(2), v);
+			} else if (k === "html") {
+				e.innerHTML = v;
+			} else if (v !== false && v !== null && v !== undefined) {
+				e.setAttribute(k, v === true ? "" : v);
+			}
+		}
+	}
+	kids.flat().forEach(k => {
+		if (k === null || k === undefined || k === false) {
+			return;
+		}
+		e.appendChild(typeof k === "string" || typeof k === "number" ? document.createTextNode(String(k)) : k);
+	});
+	return e;
+}
+
+function put(...kids) {
+	kids.flat().forEach(k => {
+		if (k) {
+			app.appendChild(k);
+		}
+	});
+}
+
+function go(view) {
+	S.view = view;
+	render();
+	window.scrollTo(0, 0);
+}
+
+let renderQueued = false;
+
+function renderSoft() {
+	if (renderQueued || S.view === "home") {
+		return;
+	}
+	renderQueued = true;
+	requestAnimationFrame(() => {
+		renderQueued = false;
+		render(true);
+	});
+}
+
+function render() {
+	const focusId = document.activeElement && document.activeElement.id;
+	app.innerHTML = "";
+	if (S.view === "home") {
+		viewHome();
+	} else if (S.view === "room") {
+		viewRoom();
+	} else if (S.view === "game") {
+		viewGame();
+	} else if (S.view === "stats") {
+		viewStats();
+	}
+	if (focusId) {
+		const f = document.getElementById(focusId);
+		if (f) {
+			f.focus();
+		}
+	}
+}
+
+function brandMark(size) {
+	const s = el("svg", { viewBox: "0 0 64 44", width: size * 1.45, height: size });
+	piece(s, 22, 24, 17, 0, {});
+	piece(s, 43, 21, 16, 1, {});
+	return s;
+}
+
+function netBadge() {
+	return h("span", { class: "net" }, h("span", { class: "dot" + (S.connected ? " on" : "") }), S.connected ? "연결됨" : "연결 중");
+}
+
+/* ---------- 첫 화면 ---------- */
+function viewHome() {
+	const hashRoom = readHashRoom();
+	const saved = store.get("bg_room", null);
+	const input = h("input", { type: "text", id: "nameInput", maxlength: 8, placeholder: "내 별명 (예: 하린)", value: S.name || "", autocomplete: "off" });
+	const ok = () => {
+		const v = input.value.trim();
+		if (!v) {
+			input.focus();
+			toast("별명을 먼저 적어 주세요");
+			return false;
+		}
+		S.name = v;
+		store.set("bg_name", v);
+		return true;
+	};
+	put(
+		h("div", { class: "hero" },
+			h("div", { class: "wiggle" }, brandMark(64)),
+			h("h1", null, "콩떡찹쌀 게임방"),
+			h("p", { class: "muted" }, "둘이서 5~15분, 링크 하나로 바로 한 판!")
+		),
+		h("div", { class: "card" },
+			h("h3", null, hashRoom ? "초대받았어요! 별명만 정하면 입장" : "내 별명"),
+			input,
+			hashRoom
+				? h("button", { class: "pink", id: "btnEnter", onclick: () => { if (ok()) { enterRoom(hashRoom); } } }, "입장하기")
+				: h("div", { class: "stack" },
+					h("button", { class: "pink", id: "btnNew", onclick: () => { if (ok()) { enterRoom(rid(10)); } } }, "우리 방 만들기"),
+					saved ? h("button", { id: "btnBack", onclick: () => { if (ok()) { enterRoom(saved); } } }, "지난 방으로 돌아가기") : null
+				)
+		),
+		h("div", { class: "card" },
+			h("h3", null, "이렇게 놀아요"),
+			h("p", { class: "muted" }, "1. 방을 만들고 링크를 상대에게 보내요."),
+			h("p", { class: "muted" }, "2. 상대가 링크를 열면 같은 방에 들어와요. 로그인은 필요 없어요."),
+			h("p", { class: "muted" }, "3. 게임을 고르면 서로 폰에서 번갈아 둬요. 승패는 방에 자동으로 쌓여요.")
+		)
+	);
+}
+
+function readHashRoom() {
+	const m = location.hash.match(/r=([a-z0-9]{6,16})/);
+	return m ? m[1] : null;
+}
+
+function enterRoom(room) {
+	S.room = room;
+	store.set("bg_room", room);
+	if (location.hash !== "#r=" + room) {
+		history.replaceState(null, "", "#r=" + room);
+	}
+	S.presence = {};
+	S.partner = store.get("bg_partner_" + room, null);
+	S.game = null;
+	S.remoteGame = null;
+	S.lastGid = null;
+	loadStats();
+	Object.assign(S.names, S.stats.names || {});
+	S.names[ME] = S.name;
+	connect();
+	go("room");
+}
+
+function shareLink() {
+	return location.origin + location.pathname + "#r=" + S.room;
+}
+
+async function share() {
+	const url = shareLink();
+	if (navigator.share) {
+		try {
+			await navigator.share({ title: "콩떡찹쌀 게임방", text: S.name + " 님이 게임방에 초대했어요!", url: url });
+			return;
+		} catch (e) {
+			/* 취소하면 복사로 */
+		}
+	}
+	try {
+		await navigator.clipboard.writeText(url);
+		toast("링크를 복사했어요. 카톡에 붙여 넣어 보내 주세요!");
+	} catch (e) {
+		prompt("이 링크를 복사해서 보내 주세요", url);
+	}
+}
+
+/* ---------- 방 화면 ---------- */
+function playerChip(cid, seat, opts) {
+	const o = opts || {};
+	const b = S.bubbles[cid];
+	return h("div", { class: "chip" + (o.turn ? " turn" : "") },
+		avatar(seat, 38, o.face || {}),
+		h("div", { class: "meta" },
+			h("div", { class: "nm" }, nameOf(cid) + (cid === ME ? " (나)" : "")),
+			h("div", { class: "sub" }, o.sub !== undefined ? o.sub : (cid === "guest" ? "" : h("span", null, h("span", { class: "dot" + (online(cid) || (cid === ME && S.connected) ? " on" : "") }), online(cid) || (cid === ME && S.connected) ? "접속 중" : "자리 비움")))
+		),
+		b && b.until > Date.now() ? h("div", { class: "bubble" }, b.text) : null
+	);
+}
+
+function miniPreview(g) {
+	const s = el("svg", { viewBox: "0 0 120 56" });
+	const bg = { omok: "#ffe3a3", four: "#b9a6ff", reversi: "#9fe3c9", dots: "#ffffff" }[g];
+	el("rect", { x: 1, y: 1, width: 118, height: 54, rx: 12, fill: bg, stroke: "#3b2f4a", "stroke-width": 2 }, s);
+	if (g === "omok") {
+		for (let i = 0; i < 5; i++) {
+			el("line", { x1: 8, y1: 8 + i * 10, x2: 112, y2: 8 + i * 10, stroke: "#c08a4c", "stroke-width": 1 }, s);
+		}
+		[30, 44, 58, 72].forEach((x, i) => piece(s, x, 18 + i * 5, 6.5, i % 2, {}));
+		piece(s, 86, 38, 6.5, 0, { happy: true });
+	} else if (g === "four") {
+		for (let c = 0; c < 6; c++) {
+			for (let r = 0; r < 3; r++) {
+				el("circle", { cx: 18 + c * 17, cy: 13 + r * 15, r: 6.5, fill: "#fdf4ff" }, s);
+			}
+		}
+		piece(s, 35, 43, 6.5, 1, {});
+		piece(s, 52, 43, 6.5, 0, {});
+		piece(s, 52, 28, 6.5, 1, {});
+		piece(s, 69, 43, 6.5, 0, {});
+	} else if (g === "reversi") {
+		piece(s, 48, 18, 8, 1, {});
+		piece(s, 66, 18, 8, 0, {});
+		piece(s, 48, 38, 8, 0, {});
+		piece(s, 66, 38, 8, 1, {});
+		piece(s, 84, 38, 8, 0, { happy: true });
+	} else {
+		for (let r = 0; r < 3; r++) {
+			for (let c = 0; c < 5; c++) {
+				el("circle", { cx: 24 + c * 18, cy: 10 + r * 18, r: 2.5, fill: "#3b2f4a" }, s);
+			}
+		}
+		el("path", { d: "M24 10 H42 V28 H24 Z", stroke: "#7a5544", "stroke-width": 3, fill: "#efe2da", "stroke-linejoin": "round" }, s);
+		piece(s, 33, 19, 5.5, 0, {});
+		el("path", { d: "M60 28 H78 V46", stroke: "#ff7aa8", "stroke-width": 3, fill: "none", "stroke-linecap": "round" }, s);
+	}
+	return s;
+}
+
+function viewRoom() {
+	const pid = partnerId();
+	const rg = S.remoteGame;
+	put(
+		h("div", { class: "topbar" },
+			h("div", { class: "brand" }, brandMark(30), h("h2", null, "우리 방")),
+			netBadge()
+		),
+		h("div", { class: "players" },
+			playerChip(ME, 0, {}),
+			pid ? playerChip(pid, 1, {}) : h("div", { class: "chip" }, avatar(1, 38, { sleepy: true }), h("div", { class: "meta" }, h("div", { class: "nm" }, "아직 혼자예요"), h("div", { class: "sub" }, "링크를 보내 주세요")))
+		),
+		!pid || !online(pid) ? h("button", { class: "butter", id: "btnShare", onclick: share }, pid ? "상대 부르기 (링크 보내기)" : "초대 링크 보내기 💌") : null,
+		rg && !rg.over && rg.seats.includes(ME)
+			? h("div", { class: "banner" },
+				h("div", { class: "t" }, GAMES[rg.game].name + " 하던 판이 있어요"),
+				h("button", { class: "small pink", id: "btnResume", onclick: () => openOnline(rg) }, "이어서 하기")
+			)
+			: null,
+		h("h3", null, "뭐 하고 놀까?"),
+		h("div", { class: "games" },
+			GAME_ORDER.map(g => {
+				const a = recFor(g, ME);
+				const b = pid ? recFor(g, pid) : null;
+				return h("button", { class: "gcard", id: "g-" + g, onclick: () => chooseMode(g) },
+					miniPreview(g),
+					h("div", { class: "gt" }, GAMES[g].name),
+					h("div", { class: "gm" }, GAMES[g].time),
+					h("div", { class: "rec" }, b ? "나 " + a.w + " : " + b.w + " " + nameOf(pid) : "전적 없음")
+				);
+			})
+		),
+		h("div", { class: "row" },
+			h("button", { id: "btnStats", onclick: () => go("stats") }, "📊 전적·승률"),
+			h("button", { id: "btnShare2", onclick: share }, "🔗 링크 공유")
+		),
+		h("div", { class: "row" },
+			h("button", { class: "ghost", id: "btnRename", onclick: () => { S.view = "home"; history.replaceState(null, "", location.pathname); render(); } }, "별명 바꾸기 · 다른 방")
+		)
+	);
+}
+
+function chooseMode(g) {
+	const pid = partnerId();
+	const G = GAMES[g];
+	const close = () => ov.remove();
+	const ov = h("div", { class: "overlay", onclick: e => { if (e.target === ov) { close(); } } },
+		h("div", { class: "sheet" },
+			miniPreview(g),
+			h("div", { class: "big" }, G.name),
+			h("p", { class: "muted" }, G.rule),
+			h("p", { class: "muted" }, "누가 먼저 둘지는 랜덤! 다음 판은 순서를 바꿔요."),
+			h("div", { class: "stack" },
+				h("button", {
+					class: "pink",
+					id: "btnOnline",
+					disabled: !pid,
+					onclick: () => { close(); startGame(g, false); }
+				}, pid ? (online(pid) ? "각자 폰으로 대결" : "각자 폰으로 (상대가 들어오면 이어서)") : "각자 폰으로 (상대 입장 필요)"),
+				h("button", { id: "btnLocalPlay", onclick: () => { close(); startGame(g, true); } }, "폰 하나로 번갈아"),
+				h("button", { class: "ghost", id: "btnCloseSheet", onclick: close }, "닫기")
+			)
+		)
+	);
+	document.body.appendChild(ov);
+}
+
+/* ---------- 게임 화면 ---------- */
+let msgOverride = null;
+
+function bumpMsg(t) {
+	msgOverride = t;
+	renderSoft();
+	clearTimeout(bumpMsg.t);
+	bumpMsg.t = setTimeout(() => {
+		msgOverride = null;
+		renderSoft();
+	}, 1600);
+}
+
+function viewGame() {
+	const st = S.game;
+	if (!st) {
+		go("room");
+		return;
+	}
+	const G = GAMES[st.game];
+	const over = st.over;
+	const freshOk = S.freshKey === st.gid + ":" + st.seq;
+	S.freshKey = null;
+
+	let msg;
+	if (msgOverride) {
+		msg = msgOverride;
+	} else if (over) {
+		msg = over.winner === -1 ? "무승부! 사이좋게 🤝" : nameOf(st.seats[over.winner]) + " 승리! 🎉";
+	} else if (st.note) {
+		msg = st.note;
+	} else if (S.local) {
+		msg = nameOf(st.seats[st.turn]) + " 차례 (" + SEAT_NAME[st.turn] + ")";
+	} else {
+		msg = st.seats[st.turn] === ME ? "내 차례! " + SEAT_NAME[st.turn] + "을 놓아요" : nameOf(st.seats[st.turn]) + " 생각 중… 🤔";
+	}
+
+	const score = over && over.score ? over.score : liveScore(st);
+	const chips = st.seats.map((cid, seat) => playerChip(cid, seat, {
+		turn: !over && st.turn === seat,
+		face: over ? (over.winner === seat ? { happy: true } : (over.winner === -1 ? {} : { sleepy: true })) : {},
+		sub: SEAT_NAME[seat] + (seat === 0 ? " · 선" : " · 후") + (score ? " · " + score[seat] + "개" : "")
+	}));
+
+	const svg = el("svg", { id: "board" });
+	G.render(svg, st, {
+		pending: S.pending,
+		freshOk: freshOk,
+		canAct: canAct(),
+		tap: tap
+	});
+
+	put(
+		h("div", { class: "topbar" },
+			h("button", { class: "ghost", id: "btnToRoom", onclick: () => { S.pending = null; go("room"); } }, "← 게임 고르기"),
+			h("h2", null, G.name),
+			S.local ? h("span", { class: "net" }, "한 폰 모드") : netBadge()
+		),
+		h("div", { class: "players" }, chips),
+		h("div", { class: "msg", id: "msg" }, msg),
+		h("div", { class: "board-wrap" }, svg),
+		G.twoTap && !over
+			? h("button", { class: "pink", id: "btnPlace", disabled: S.pending === null || !canAct(), onclick: () => { if (S.pending !== null) { commit(S.pending); } } }, S.pending === null ? (st.game === "dots" ? "선을 눌러 고르고, 한 번 더 누르면 그어요" : "칸을 눌러 고르고, 한 번 더 누르면 놓여요") : (st.game === "dots" ? "이 선 긋기!" : "여기에 놓기!"))
+			: null,
+		over
+			? h("div", { class: "row" },
+				h("button", { class: "pink", id: "btnRematch", onclick: rematch }, "한 판 더! (순서 바꿈)"),
+				h("button", { id: "btnPick", onclick: () => go("room") }, "다른 게임")
+			)
+			: null,
+		S.local && !over ? h("div", { class: "row" }, h("button", { id: "btnUndo", disabled: !S.history || !S.history.length, onclick: undo }, "무르기 ↩")) : null,
+		!S.local ? h("div", { class: "emotes" }, EMOTES.map((t, i) => h("button", { id: "emo" + i, onclick: () => sendEmote(t) }, t))) : null,
+		h("p", { class: "muted", style: "text-align:center" }, G.rule)
+	);
+
+	if (over && S.resultShownFor !== st.gid) {
+		S.resultShownFor = st.gid;
+		setTimeout(() => showResult(st), 450);
+	}
+}
+
+function liveScore(st) {
+	if (st.game === "reversi") {
+		return [st.s.b.filter(v => v === 0).length, st.s.b.filter(v => v === 1).length];
+	}
+	if (st.game === "dots") {
+		return [st.s.box.filter(v => v === 0).length, st.s.box.filter(v => v === 1).length];
+	}
+	return null;
+}
+
+function showResult(st) {
+	const over = st.over;
+	const meSeat = st.seats.indexOf(ME);
+	let title;
+	let sub;
+	let face;
+	let seatShown;
+	if (over.winner === -1) {
+		title = "무승부!";
+		sub = "둘 다 잘했어요 🤝";
+		seatShown = 0;
+		face = {};
+	} else {
+		seatShown = over.winner;
+		face = { happy: true };
+		const wName = nameOf(st.seats[over.winner]);
+		if (!S.local && meSeat !== -1) {
+			title = over.winner === meSeat ? "이겼다!! 🎉" : "졌다… 😭";
+			sub = over.winner === meSeat ? "역시 내가 최고야" : wName + " 님 승리. 복수전 가자!";
+		} else {
+			title = wName + " 승리!";
+			sub = "축하해요 🎉";
+		}
+	}
+	if (!(over.winner !== -1 && !S.local && meSeat !== -1 && over.winner !== meSeat)) {
+		confetti();
+	}
+	const pid = st.seats.find(c => c !== ME);
+	const recLine = pid && pid !== "guest"
+		? h("p", { class: "muted" }, GAMES[st.game].name + " 전적  " + nameOf(ME) + " " + recFor(st.game, ME).w + "승 : " + recFor(st.game, pid).w + "승 " + nameOf(pid))
+		: h("p", { class: "muted" }, "친구와의 판은 전적에 남지 않아요");
+	const close = () => ov.remove();
+	const ov = h("div", { class: "overlay", onclick: e => { if (e.target === ov) { close(); } } },
+		h("div", { class: "sheet" },
+			avatar(seatShown, 84, face),
+			h("div", { class: "big" }, title),
+			h("p", null, sub + (over.score ? "  (" + over.score[0] + " : " + over.score[1] + ")" : "")),
+			recLine,
+			h("div", { class: "stack" },
+				h("button", { class: "pink", id: "btnRematch2", onclick: () => { close(); rematch(); } }, "한 판 더!"),
+				h("button", { id: "btnSeeBoard", onclick: close }, "판 구경하기"),
+				h("button", { class: "ghost", id: "btnStats2", onclick: () => { close(); go("stats"); } }, "전적 보러 가기")
+			)
+		)
+	);
+	document.body.appendChild(ov);
+}
+
+/* ---------- 전적 화면 ---------- */
+function viewStats() {
+	const pid = partnerId();
+	const tab = S.statsTab;
+	const tabs = h("div", { class: "tabs" },
+		[["all", "전체"]].concat(GAME_ORDER.map(g => [g, GAMES[g].name])).map(([k, label]) =>
+			h("button", { class: tab === k ? "on" : "", id: "tab-" + k, onclick: () => { S.statsTab = k; render(); } }, label)
+		)
+	);
+	const a = recFor(tab, ME);
+	const b = pid ? recFor(tab, pid) : { w: 0, l: 0, d: 0 };
+	const total = a.w + a.l + a.d;
+	const draws = a.d;
+	const aw = a.w;
+	const bw = b.w;
+	const sum = Math.max(1, aw + bw + draws);
+
+	const vs = h("div", { class: "card" },
+		h("div", { class: "vs" },
+			h("div", null, avatar(0, 56, aw > bw ? { happy: true } : (aw < bw ? { sleepy: true } : {})), h("div", { class: "who" }, nameOf(ME))),
+			h("div", null, h("span", { class: "score" }, aw), h("span", { class: "colon" }, " : "), h("span", { class: "score" }, bw)),
+			h("div", null, avatar(1, 56, bw > aw ? { happy: true } : (bw < aw ? { sleepy: true } : {})), h("div", { class: "who" }, pid ? nameOf(pid) : "상대"))
+		),
+		total
+			? h("div", { class: "rate-bar" },
+				h("span", { style: "flex-basis:" + (aw / sum * 100) + "%;background:#7a5544" }, aw ? rate(a) + "%" : ""),
+				h("span", { style: "flex-basis:" + (draws / sum * 100) + "%;background:#cfc6d8;color:#3b2f4a" }, draws ? "무" : ""),
+				h("span", { style: "flex-basis:" + (bw / sum * 100) + "%;background:#ff7aa8" }, bw ? rate(b) + "%" : "")
+			)
+			: h("p", { class: "muted", style: "text-align:center" }, "아직 기록이 없어요. 첫 판을 해 볼까요?"),
+		total ? h("p", { class: "muted", style: "text-align:center" }, "총 " + total + "판 · 무승부 " + draws + "판") : null
+	);
+
+	const table = h("table", null,
+		h("thead", null, h("tr", null, h("th", null, "게임"), h("th", null, nameOf(ME) + " 승"), h("th", null, (pid ? nameOf(pid) : "상대") + " 승"), h("th", null, "무"), h("th", null, "내 승률"))),
+		h("tbody", null, GAME_ORDER.map(g => {
+			const x = recFor(g, ME);
+			const y = pid ? recFor(g, pid) : { w: 0 };
+			const t = x.w + x.l + x.d;
+			return h("tr", null, h("td", null, GAMES[g].name), h("td", null, x.w), h("td", null, y.w), h("td", null, x.d), h("td", null, t ? rate(x) + "%" : "-"));
+		}))
+	);
+
+	const logs = (S.stats.log || []).filter(l => tab === "all" || l.g === tab).slice(0, 12);
+	const logBox = h("div", { class: "log" },
+		logs.length
+			? logs.map(l => h("div", null,
+				h("span", null, GAMES[l.g].name + (l.local ? " · 한 폰" : "")),
+				h("span", null, l.w ? nameOf(l.w) + " 승" + (l.sc ? " (" + l.sc[0] + ":" + l.sc[1] + ")" : "") : "무승부"),
+				h("span", { class: "muted" }, fmtDate(l.ts))
+			))
+			: h("p", { class: "muted" }, "아직 기록이 없어요")
+	);
+
+	put(
+		h("div", { class: "topbar" },
+			h("button", { class: "ghost", id: "btnStatsBack", onclick: () => go("room") }, "← 우리 방"),
+			h("h2", null, "전적·승률"),
+			h("span", null)
+		),
+		tabs,
+		vs,
+		h("div", { class: "card" }, h("h3", null, "게임별 기록"), h("div", { style: "overflow-x:auto" }, table)),
+		h("div", { class: "card" }, h("h3", null, "최근 판"), logBox)
+	);
+}
+
+function fmtDate(ts) {
+	const d = new Date(ts);
+	return (d.getMonth() + 1) + "/" + d.getDate() + " " + String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
+}
+
+/* =========================================================
+	효과
+========================================================= */
+let toastT = null;
+
+function toast(t) {
+	let e = document.querySelector(".toast");
+	if (!e) {
+		e = h("div", { class: "toast" });
+		document.body.appendChild(e);
+	}
+	e.textContent = t;
+	clearTimeout(toastT);
+	toastT = setTimeout(() => e.remove(), 2400);
+}
+
+function confetti() {
+	if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+		return;
+	}
+	const cv = document.getElementById("fx");
+	cv.hidden = false;
+	const dpr = window.devicePixelRatio || 1;
+	cv.width = innerWidth * dpr;
+	cv.height = innerHeight * dpr;
+	const ctx = cv.getContext("2d");
+	ctx.scale(dpr, dpr);
+	const colors = ["#ff7aa8", "#5ccfb5", "#ffd66b", "#b9a6ff", "#7a5544"];
+	const parts = [];
+	for (let i = 0; i < 110; i++) {
+		parts.push({
+			x: innerWidth / 2 + (Math.random() - 0.5) * 80,
+			y: innerHeight * 0.35,
+			vx: (Math.random() - 0.5) * 12,
+			vy: -Math.random() * 12 - 4,
+			s: 5 + Math.random() * 6,
+			c: colors[i % colors.length],
+			r: Math.random() * 6,
+			heart: i % 5 === 0
+		});
+	}
+	const t0 = performance.now();
+	function frame(t) {
+		ctx.clearRect(0, 0, innerWidth, innerHeight);
+		parts.forEach(p => {
+			p.vy += 0.35;
+			p.x += p.vx;
+			p.y += p.vy;
+			p.r += 0.1;
+			ctx.save();
+			ctx.translate(p.x, p.y);
+			ctx.rotate(p.r);
+			ctx.fillStyle = p.c;
+			if (p.heart) {
+				ctx.font = (p.s * 2.2) + "px sans-serif";
+				ctx.fillText("♥", 0, 0);
+			} else {
+				ctx.fillRect(-p.s / 2, -p.s / 4, p.s, p.s / 2);
+			}
+			ctx.restore();
+		});
+		if (t - t0 < 2600) {
+			requestAnimationFrame(frame);
+		} else {
+			ctx.clearRect(0, 0, innerWidth, innerHeight);
+			cv.hidden = true;
+		}
+	}
+	requestAnimationFrame(frame);
+}
+
+/* =========================================================
+	시작
+========================================================= */
+document.addEventListener("visibilitychange", () => {
+	if (document.visibilityState === "visible" && S.room) {
+		if (!S.client || !S.connected) {
+			connect();
+		} else {
+			announce();
+		}
+	}
+});
+
+window.addEventListener("hashchange", () => {
+	const r = readHashRoom();
+	if (r && r !== S.room && S.name) {
+		enterRoom(r);
+	}
+});
+
+(function boot() {
+	const r = readHashRoom();
+	if (r && S.name) {
+		enterRoom(r);
+		return;
+	}
+	if (!r && S.name && store.get("bg_room", null)) {
+		enterRoom(store.get("bg_room", null));
+		return;
+	}
+	go("home");
+})();
+</script>
+</body>
+</html>
